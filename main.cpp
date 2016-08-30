@@ -331,12 +331,6 @@ int main(void)
                         // && (cv::isContourConvex(approx_polys)) 
                         )
                     {
-                     //    VERBOSE("before sorting")
-                    	for (size_t i = 0; i < approx_polys.size(); ++i)
-                    	{
-                    		VERBOSETP( " Point:",approx_polys.at(i) );
-                    	}
-                    	VERBOSE("");
                         //std::sort(approx_polys.begin(), approx_polys.end(),compare_points);
                         // ordered_polys = approx_polys;
                         //points are either 
@@ -361,9 +355,6 @@ int main(void)
 
                         //now the order of points is: top left, top right, bottom right, bottom left.
                         rotated = cv::Mat(transformed_height_width,transformed_height_width,CV_8U); //this will contain our roi
-
-                    	
-
                     	cv::Point2f dst_vertices[4]; 
                     	//in the order:
                         //top left, bottom left, bottom right, top right
@@ -380,8 +371,24 @@ int main(void)
                     	
                     	cv::Mat warpAffineMatrix = cv::getPerspectiveTransform(src_vertices,dst_vertices);
 
-                    	cv::Size warp_size(transformed_height_width,transformed_height_width); //set size to 200 x 200
+                    	cv::Size warp_size(transformed_height_width,transformed_height_width);
                     	cv::warpPerspective(img_thresholded,rotated,warpAffineMatrix,warp_size,cv::INTER_LINEAR,cv::BORDER_CONSTANT);
+
+                        //get area, (check if in range), get x and y
+                        /// Get the moments
+                        cv::vector<cv::Moments> mu(contours.size() );
+                        for( int i = 0; i < contours.size(); i++ )
+                        {
+                            mu[i] = moments( contours[i], false );
+                        }
+
+                        ///  Get the mass centers:
+                        cv::vector<cv::Point2f> mc( contours.size() );
+                        for( int i = 0; i < contours.size(); i++ )
+                        {
+                            mc[i] = cv::Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 );
+                        }
+                        //VERBOSETP("Area of ROI:",mu[i].m00);
                     }
                 }
             }
