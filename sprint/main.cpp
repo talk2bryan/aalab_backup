@@ -331,11 +331,11 @@ int main(void)
                         )
                     {
                      //    VERBOSE("before sorting")
-                    	// for (size_t i = 0; i < approx_polys.size(); ++i)
-                    	// {
-                    	// 	VERBOSETP( " Point:",approx_polys.at(i) );
-                    	// }
-                    	// VERBOSE("");
+                    	for (size_t i = 0; i < approx_polys.size(); ++i)
+                    	{
+                    		VERBOSETP( " Point:",approx_polys.at(i) );
+                    	}
+                    	VERBOSE("");
 
 
 
@@ -344,12 +344,12 @@ int main(void)
                         ordered_polys = approx_polys;
 
                         //if we need to switch the middle two points based on order
-                        if (approx_polys.at(1).x < approx_polys.at(2).x)
-                        {
-                            //switch the inner two
-                            ordered_polys[1] = approx_polys[2];
-                            ordered_polys[2] = approx_polys[1];
-                        }
+                        // if (approx_polys.at(1).x < approx_polys.at(2).x)
+                        // {
+                        //     //switch the inner two
+                        //     ordered_polys[1] = approx_polys[2];
+                        //     ordered_polys[2] = approx_polys[1];
+                        // }
 
                         //now the order of points is: top left, top right, bottom right, bottom left.
                         rotated = cv::Mat(200,200,CV_8UC1); //this will contain our roi
@@ -360,15 +360,15 @@ int main(void)
                         //     VERBOSETP( " Point:",approx_polys.at(i) );
                         // }
                         // VERBOSE("");
-                    	const cv::Point *point = &approx_polys[0];
-                    	int n = (int)approx_polys.size();
-                    	cv::polylines(rotated,&point,&n,1,true,cv::Scalar(0,255,0),3,CV_AA);
+                    	// const cv::Point *point = &approx_polys[0];
+                    	// int n = (int)approx_polys.size();
+                    	// cv::polylines(rotated,&point,&n,1,true,cv::Scalar(0,255,0),3,CV_AA);
          				// ordered_polys.push_back(approx_polys.at(3));
          				// ordered_polys.push_back(approx_polys.at(0));
          				// ordered_polys.push_back(approx_polys.at(2));
          				// ordered_polys.push_back(approx_polys.at(1));
 
-                    	cv::RotatedRect box = cv::minAreaRect(cv::Mat(approx_polys));
+                    	// cv::RotatedRect box = cv::minAreaRect(cv::Mat(approx_polys));
                     	// std::cout<<"Rotated box set to (" <<box.boundingRect().x<<", "
                     	// 	<<box.boundingRect().y<<") "<<box.size.width<<"x"
                     	// 	<<box.size.height<<std::endl;
