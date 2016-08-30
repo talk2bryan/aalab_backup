@@ -51,7 +51,7 @@ static const int canny_threshold = 100;
 static const int canny_ratio = 3;
 static const int canny_kernel_size = 3;
 static const int num_vertices_square = 4;
-static const int transformed_height_width = 200;
+static const int transformed_height_width = 500;
 static const int min_poly_contour_area = 1000; //this is based on sampling the area of the proposed target
 
 
@@ -339,20 +339,27 @@ int main(void)
 
 
 
-                        std::sort(approx_polys.begin(), approx_polys.end(),compare_points);
+                        //std::sort(approx_polys.begin(), approx_polys.end(),compare_points);
 
-                        ordered_polys = approx_polys;
+                        // ordered_polys = approx_polys;
 
-                        //if we need to switch the middle two points based on order
-                        // if (approx_polys.at(1).x < approx_polys.at(2).x)
-                        // {
-                        //     //switch the inner two
-                        //     ordered_polys[1] = approx_polys[2];
-                        //     ordered_polys[2] = approx_polys[1];
-                        // }
+                        if (approx_polys[1].y < approx_polys[3].y && approx_polys[0].y < approx_polys[2].y)
+                        {//else we have TR, TL, BL, BR (bacd)
+                            ordered_polys[0] = approx_polys[1];
+                            ordered_polys[1] = approx_polys[2];
+                            ordered_polys[2] = approx_polys[3];
+                            ordered_polys[3] = approx_polys[0];
+                        }
+                        else
+                        {//normal - TL, BL,BR, TR (abcd)
+                            ordered_polys[0] = approx_polys[0];
+                            ordered_polys[1] = approx_polys[1];
+                            ordered_polys[2] = approx_polys[2];
+                            ordered_polys[3] = approx_polys[3];
+                        }
 
                         //now the order of points is: top left, top right, bottom right, bottom left.
-                        rotated = cv::Mat(200,200,CV_8UC1); //this will contain our roi
+                        rotated = cv::Mat(transformed_height_width,transformed_height_width,CV_8U); //this will contain our roi
 
                         // VERBOSE("after sorting:")
                         // for (size_t i = 0; i < approx_polys.size(); ++i)
@@ -368,27 +375,16 @@ int main(void)
          				// ordered_polys.push_back(approx_polys.at(2));
          				// ordered_polys.push_back(approx_polys.at(1));
 
-                    	// cv::RotatedRect box = cv::minAreaRect(cv::Mat(approx_polys));
-                    	// std::cout<<"Rotated box set to (" <<box.boundingRect().x<<", "
-                    	// 	<<box.boundingRect().y<<") "<<box.size.width<<"x"
-                    	// 	<<box.size.height<<std::endl;
-                        
-                    	cv::Point2f pts[4];
-                    	box.points(pts);
-
-                    	// VERBOSE("Box points");
-                    	// for (size_t i = 0; i < sizeof(pts)/sizeof(*pts); ++i)
-                    	// {
-                    	// 	VERBOSETP( " Point:",pts[i] );
-                    	// }
+                    	
 
                     	cv::Point2f dst_vertices[4]; 
                     	//in the order:
+                        //top left, bottom left, bottom right, top right
                     	//top right, bottom right, bottom left,top left
                     	dst_vertices[0] = cv::Point(0,0);
-                    	dst_vertices[1] = cv::Point(199,0);
-                    	dst_vertices[2] = cv::Point(199,199);
-                    	dst_vertices[3] = cv::Point(0,199);
+                    	dst_vertices[1] = cv::Point(0,transformed_height_width-1);
+                    	dst_vertices[2] = cv::Point(transformed_height_width-1,transformed_height_width-1);
+                    	dst_vertices[3] = cv::Point(transformed_height_width-1,0);
 
                         cv::Point2f src_vertices[4];
                         src_vertices[0] = ordered_polys[0];
