@@ -104,7 +104,9 @@ static void set_range_params()
             cv::cvtColor(curr_frame,curr_hsv,cv::COLOR_BGR2HSV);
             
             cv::inRange(curr_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),curr_thresholded);
-            cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(5,5),0);
+            cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(2,2),0);
+            // cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+            // cv::dilate(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
         }
         
         cv::imshow("Thresholded Image",curr_thresholded);
@@ -305,7 +307,7 @@ int main(void)
             cv::cvtColor(mat_frame,img_hsv,cv::COLOR_BGR2HSV);
             
             cv::inRange(img_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),img_thresholded);
-            cv::GaussianBlur(img_thresholded,img_thresholded,cv::Size(5,5),0);
+            cv::GaussianBlur(img_thresholded,img_thresholded,cv::Size(2,2),0);
 
             // cv::erode(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
             // cv::dilate(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
