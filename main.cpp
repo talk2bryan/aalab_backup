@@ -51,7 +51,7 @@ static const int canny_threshold = 100;
 static const int canny_ratio = 3;
 static const int canny_kernel_size = 3;
 static const int num_vertices_square = 4;
-static const int transformed_height_width = 500;
+static const int transformed_height_width = 200;
 static const int min_poly_contour_area = 1000; //this is based on sampling the area of the proposed target
 
 
@@ -352,10 +352,7 @@ int main(void)
                         }
                         else
                         {//normal - TL, BL,BR, TR (abcd)
-                            ordered_polys[0] = approx_polys[0];
-                            ordered_polys[1] = approx_polys[1];
-                            ordered_polys[2] = approx_polys[2];
-                            ordered_polys[3] = approx_polys[3];
+                            ordered_polys = approx_polys;
                         }
 
                         //now the order of points is: top left, top right, bottom right, bottom left.
