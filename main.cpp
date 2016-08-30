@@ -295,6 +295,7 @@ int main(void)
         if( mat_frame.data )
         {
         	new_frame = cv::Mat::zeros(mat_frame.size(),CV_8UC3);
+            img_thresholded = cv::Mat(mat_frame.size(),CV_8U);
             static std::vector<std::vector<cv::Point> > contours; 
             // static std::vector<std::vector<cv::Point> > squares;
             static std::vector<cv::Point> approx_polys;
@@ -336,13 +337,16 @@ int main(void)
                     		VERBOSETP( " Point:",approx_polys.at(i) );
                     	}
                     	VERBOSE("");
-
-
-
                         //std::sort(approx_polys.begin(), approx_polys.end(),compare_points);
-
                         // ordered_polys = approx_polys;
-
+                        //points are either 
+                        /*
+                        a   d   
+                        b   c
+                          OR
+                        b   a
+                        c   d
+                        */
                         if (approx_polys[1].y < approx_polys[3].y && approx_polys[0].y < approx_polys[2].y)
                         {//else we have TR, TL, BL, BR (bacd)
                             ordered_polys[0] = approx_polys[1];
@@ -358,26 +362,11 @@ int main(void)
                         //now the order of points is: top left, top right, bottom right, bottom left.
                         rotated = cv::Mat(transformed_height_width,transformed_height_width,CV_8U); //this will contain our roi
 
-                        // VERBOSE("after sorting:")
-                        // for (size_t i = 0; i < approx_polys.size(); ++i)
-                        // {
-                        //     VERBOSETP( " Point:",approx_polys.at(i) );
-                        // }
-                        // VERBOSE("");
-                    	// const cv::Point *point = &approx_polys[0];
-                    	// int n = (int)approx_polys.size();
-                    	// cv::polylines(rotated,&point,&n,1,true,cv::Scalar(0,255,0),3,CV_AA);
-         				// ordered_polys.push_back(approx_polys.at(3));
-         				// ordered_polys.push_back(approx_polys.at(0));
-         				// ordered_polys.push_back(approx_polys.at(2));
-         				// ordered_polys.push_back(approx_polys.at(1));
-
                     	
 
                     	cv::Point2f dst_vertices[4]; 
                     	//in the order:
                         //top left, bottom left, bottom right, top right
-                    	//top right, bottom right, bottom left,top left
                     	dst_vertices[0] = cv::Point(0,0);
                     	dst_vertices[1] = cv::Point(0,transformed_height_width-1);
                     	dst_vertices[2] = cv::Point(transformed_height_width-1,transformed_height_width-1);
@@ -392,26 +381,8 @@ int main(void)
                     	cv::Mat warpAffineMatrix = cv::getPerspectiveTransform(src_vertices,dst_vertices);
 
                     	cv::Size warp_size(transformed_height_width,transformed_height_width); //set size to 200 x 200
-                    	cv::warpPerspective(mat_frame,rotated,warpAffineMatrix,warp_size,cv::INTER_LINEAR,cv::BORDER_CONSTANT);
-
-                        // double maxCosine = 0;
-
-                        // for( int j = 2; j < num_vertices_square+1; j++ )
-                        // {
-                        //     // find the maximum cosine of the angle between joint edges
-                        //     double cosine = fabs(find_cosine(approx_polys[j%num_vertices_square], approx_polys[j-2], approx_polys[j-1]));
-                        //     maxCosine = MAX(maxCosine, cosine);
-                        // }
-
-                        // if( maxCosine < 0.3 )
-                        // {
-                        //     squares.push_back(approx_polys);
-                        //     VERBOSETP("Number of rectanges: ",squares.size());
-                        // }
-                        // cv::imshow("Thresholded Image",img_thresholded);
-                        // if(cv::waitKey(30) == 27) break;
+                    	cv::warpPerspective(img_thresholded,rotated,warpAffineMatrix,warp_size,cv::INTER_LINEAR,cv::BORDER_CONSTANT);
                     }
-                    // squares.clear();
                 }
             }
             // if( isImageRectangle(img_canny) )
