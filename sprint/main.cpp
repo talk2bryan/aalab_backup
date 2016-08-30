@@ -104,7 +104,7 @@ static void set_range_params()
             cv::cvtColor(curr_frame,curr_hsv,cv::COLOR_BGR2HSV);
             
             cv::inRange(curr_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),curr_thresholded);
-            cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(9,9),2,2);
+            cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(5,5),0);
         }
         
         cv::imshow("Thresholded Image",curr_thresholded);
@@ -305,10 +305,10 @@ int main(void)
             cv::cvtColor(mat_frame,img_hsv,cv::COLOR_BGR2HSV);
             
             cv::inRange(img_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),img_thresholded);
-            //cv::GaussianBlur(img_thresholded,blurred_frame,cv::Size(9,9),2,2);
+            cv::GaussianBlur(img_thresholded,img_thresholded,cv::Size(5,5),0);
 
-            cv::erode(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
-            cv::dilate(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+            // cv::erode(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+            // cv::dilate(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
 
             //canny, then check if it's a rectangle and check if a circle's in it
             cv::Canny(img_thresholded,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
@@ -331,6 +331,7 @@ int main(void)
                         // && (cv::isContourConvex(approx_polys)) 
                         )
                     {
+                        VERBOSETP("Area: ", cv::contourArea(approx_polys));
                         //std::sort(approx_polys.begin(), approx_polys.end(),compare_points);
                         // ordered_polys = approx_polys;
                         //points are either 
@@ -375,20 +376,22 @@ int main(void)
                     	cv::warpPerspective(img_thresholded,rotated,warpAffineMatrix,warp_size,cv::INTER_LINEAR,cv::BORDER_CONSTANT);
 
                         //get area, (check if in range), get x and y
-                        /// Get the moments
-                        cv::vector<cv::Moments> mu(contours.size() );
-                        for( int i = 0; i < contours.size(); i++ )
-                        {
-                            mu[i] = moments( contours[i], false );
-                        }
+                        // /// Get the moments
+                        // cv::vector<cv::Moments> mu(contours.size() );
+                        // for( int i = 0; i < contours.size(); i++ )
+                        // {
+                        //     mu[i] = moments( contours[i], false );
+                        // }
 
-                        ///  Get the mass centers:
-                        cv::vector<cv::Point2f> mc( contours.size() );
-                        for( int i = 0; i < contours.size(); i++ )
-                        {
-                            mc[i] = cv::Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 );
-                        }
+                        // ///  Get the mass centers:
+                        // cv::vector<cv::Point2f> mc( contours.size() );
+                        // for( int i = 0; i < contours.size(); i++ )
+                        // {
+                        //     mc[i] = cv::Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 );
+                        // }
                         //VERBOSETP("Area of ROI:",mu[i].m00);
+
+
                     }
                 }
             }
