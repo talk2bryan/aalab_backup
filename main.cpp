@@ -52,9 +52,8 @@ static const int canny_ratio = 3;
 static const int canny_kernel_size = 3;
 static const int num_vertices_square = 4;
 static const int transformed_height_width = 200;
-static const int min_target_area = 260;
-static const int max_target_area = 32000; //these values are based on sampling the target area
-static const int min_poly_contour_area = 1000; //this is based on sampling the area of the proposed target
+static const int min_target_area = 200;
+static const int max_target_area = 33000; //these values are based on sampling the target area
 
 
 void change_current_dir()
@@ -341,7 +340,7 @@ int main(void)
                         // && (cv::isContourConvex(approx_polys)) 
                         )
                     {
-                        VERBOSETP("Area: ", cv::contourArea(approx_polys));
+                        
                         //std::sort(approx_polys.begin(), approx_polys.end(),compare_points);
                         // ordered_polys = approx_polys;
                         //points are either 
@@ -400,25 +399,30 @@ int main(void)
                         //     mc[i] = cv::Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 );
                         // }
                         //VERBOSETP("Area of ROI:",mu[i].m00);
-                        curr_area = cv::contourArea(ordered_polys); 
-
+                        curr_area = cv::contourArea(ordered_polys);
+                        
                         if (min_target_area < curr_area && curr_area < max_target_area)
                         {
                             VERBOSE("Found target");
-                            if (curr_area > 2000)
+                            VERBOSETP("Area: ", curr_area);
+                            if (curr_area > 15000)
                             {//closing in on object so tilt head downwards to focus
-                                Head::GetInstance()->MoveByAngle(0,-3); //look face down
+                                Head::GetInstance()->MoveByAngle(0,-2);
                             }
                             else
                             {
                                 //walk straight because target is far away
+                                Head::GetInstance()->MoveByAngle(0,30); //look straight
                                 // get centre of the target, x marks the spot
                                 iLastX = (get_2D_distance(ordered_polys[0],ordered_polys[3]))/2;
                                 iLastY = (get_2D_distance(ordered_polys[0],ordered_polys[1]))/2;
+
+                                std::cout<<"Co-ordinates: [" << iLastX << ", " << iLastY << "]" <<std::endl;
+
                                 Point2D new_ball_pos(iLastX,iLastY);
                                 tracker.Process(new_ball_pos);
                                 // follower.Process(tracker.ball_position);
-                                usleep(200); 
+                                usleep(250); 
                             }
                         }
                         else
@@ -453,6 +457,7 @@ int main(void)
             //     //follower.Process(tracker.ball_position);
             	// cv::Mat img(new_frame.rows,new_frame.cols,CV_8UC1);
             	// cv::polylines(img,approx_polys,true,cv::Scalar(255));
+
                 cv::imshow("Thresholded Image",img_thresholded);
                 cv::imshow("Canny Image",img_canny);
                 if(rotated.data)
