@@ -53,7 +53,7 @@ static const int canny_kernel_size = 3;
 static const int num_vertices_square = 4;
 static const int transformed_height_width = 200;
 static const int min_target_area = 260;
-static const jnt max_target_area = 32000; //these values are based on sampling the target area
+static const int max_target_area = 32000; //these values are based on sampling the target area
 static const int min_poly_contour_area = 1000; //this is based on sampling the area of the proposed target
 
 
@@ -122,9 +122,15 @@ static void set_range_params()
     }
     
 }
+static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
+{//based on the Euclidean plane
+    float diffX = pt1.x - pt2.x;
+    float diffY = pt1.y - pt2.y;
+    return sqrt( (diffX * diffX) + (diffY * diffY) );
+}
 
 /*find  cosine of angle between two vectors from pt0->pt1 and from pt0->pt2 */
-static double find_cosine( cv::Point pt1, cv::Point pt2, cv::Point pt0 )
+static double find_cosine( const cv::Point pt1, const cv::Point pt2, const cv::Point pt0 )
 {
     double dx1 = pt1.x - pt0.x;
     double dy1 = pt1.y - pt0.y;
@@ -285,8 +291,8 @@ int main(void)
 
     int curr_area;
     //values for reporting the X and Y vals for found circle
-    int iLastX = -1; 
-    int iLastY = -1;
+    float iLastX = -1; 
+    float iLastY = -1;
     cv::Mat img_hsv, img_thresholded, img_canny, img_ROI, new_frame, rotated,blurred_frame;
     
 
@@ -394,16 +400,30 @@ int main(void)
                         //     mc[i] = cv::Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 );
                         // }
                         //VERBOSETP("Area of ROI:",mu[i].m00);
-                        curr_area = cv::contourArea(approx_polys); 
+                        curr_area = cv::contourArea(ordered_polys); 
 
                         if (min_target_area < curr_area && curr_area < max_target_area)
                         {
                             VERBOSE("Found target");
+                            if (curr_area > 2000)
+                            {//closing in on object so tilt head downwards to focus
+                                Head::GetInstance()->MoveByAngle(0,-3); //look face down
+                            }
+                            else
+                            {
+                                //walk straight because target is far away
+                                // get centre of the target, x marks the spot
+                                iLastX = (get_2D_distance(ordered_polys[0],ordered_polys[3]))/2;
+                                iLastY = (get_2D_distance(ordered_polys[0],ordered_polys[1]))/2;
+                                Point2D new_ball_pos(iLastX,iLastY);
+                                tracker.Process(new_ball_pos);
+                                follower.Process(tracker.ball_position);
+                                usleep(200); 
+                            }
                         }
                         else
                         {
                             VERBOSE("not finding target...");
-                            Head::GetInstance()->MoveByAngle(0,-3); //look face down
                         }
 
 
