@@ -104,7 +104,7 @@ static void set_range_params()
             cv::cvtColor(curr_frame,curr_hsv,cv::COLOR_BGR2HSV);
             
             cv::inRange(curr_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),curr_thresholded);
-            cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(2,2),0);
+            cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(9,9),2,2);
             // cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
             // cv::dilate(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
         }
@@ -262,7 +262,6 @@ int main(void)
     }
     cm730.SyncWrite(MX28::P_GOAL_POSITION_L, 5, JointData::NUMBER_OF_JOINTS - 1, param);
 
-
     //values for inRange thresholding of red colored objects
     set_range_params();
     VERBOSETP("iLowH: ",iLowH);
@@ -280,7 +279,7 @@ int main(void)
     Walking::GetInstance()->m_Joint.SetEnableBodyWithoutHead(true, true);
     MotionManager::GetInstance()->SetEnable(true);
 
-    Head::GetInstance()->MoveByAngle(0,30); //keep head focused on target
+    Head::GetInstance()->MoveByAngle(0,20); //keep head focused on target
 
     //values for reporting the X and Y vals for found circle
     int iLastX = -1; 
@@ -307,7 +306,7 @@ int main(void)
             cv::cvtColor(mat_frame,img_hsv,cv::COLOR_BGR2HSV);
             
             cv::inRange(img_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),img_thresholded);
-            cv::GaussianBlur(img_thresholded,img_thresholded,cv::Size(2,2),0);
+            cv::GaussianBlur(img_thresholded,img_thresholded,cv::Size(9,9),2,2);
 
             // cv::erode(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
             // cv::dilate(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
@@ -422,7 +421,8 @@ int main(void)
             	// cv::polylines(img,approx_polys,true,cv::Scalar(255));
                 cv::imshow("Thresholded Image",img_thresholded);
                 cv::imshow("Canny Image",img_canny);
-                cv::imshow("Rotated",rotated);
+                if(rotated.data)
+                    cv::imshow("Rotated",rotated);
                 // cv::imshow("ROI",img_ROI);
                 if(cv::waitKey(30) == 27) break;
 
