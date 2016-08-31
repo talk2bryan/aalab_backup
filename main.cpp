@@ -52,6 +52,8 @@ static const int canny_ratio = 3;
 static const int canny_kernel_size = 3;
 static const int num_vertices_square = 4;
 static const int transformed_height_width = 200;
+static const int min_target_area = 260;
+static const jnt max_target_area = 32000; //these values are based on sampling the target area
 static const int min_poly_contour_area = 1000; //this is based on sampling the area of the proposed target
 
 
@@ -281,6 +283,7 @@ int main(void)
 
     Head::GetInstance()->MoveByAngle(0,20); //keep head focused on target
 
+    int curr_area;
     //values for reporting the X and Y vals for found circle
     int iLastX = -1; 
     int iLastY = -1;
@@ -391,6 +394,17 @@ int main(void)
                         //     mc[i] = cv::Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 );
                         // }
                         //VERBOSETP("Area of ROI:",mu[i].m00);
+                        curr_area = cv::contourArea(approx_polys); 
+
+                        if (min_target_area < curr_area && curr_area < max_target_area)
+                        {
+                            VERBOSE("Found target");
+                        }
+                        else
+                        {
+                            VERBOSE("not finding target...");
+                            Head::GetInstance()->MoveByAngle(0,-3); //look face down
+                        }
 
 
                     }
