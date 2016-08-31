@@ -107,7 +107,7 @@ static void set_range_params()
             
             cv::inRange(curr_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),curr_thresholded);
             cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(9,9),2,2);
-            // cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+            cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
             // cv::dilate(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
         }
         
@@ -317,7 +317,7 @@ int main(void)
             cv::inRange(img_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),img_thresholded);
             cv::GaussianBlur(img_thresholded,img_thresholded,cv::Size(9,9),2,2);
 
-            // cv::erode(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+            cv::erode(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
             // cv::dilate(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
 
             //canny, then check if it's a rectangle and check if a circle's in it
@@ -417,7 +417,7 @@ int main(void)
                                 iLastY = (get_2D_distance(ordered_polys[0],ordered_polys[1]))/2;
                                 Point2D new_ball_pos(iLastX,iLastY);
                                 tracker.Process(new_ball_pos);
-                                follower.Process(tracker.ball_position);
+                                // follower.Process(tracker.ball_position);
                                 usleep(200); 
                             }
                         }
