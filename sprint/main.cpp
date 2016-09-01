@@ -249,7 +249,7 @@ int main(void)
     float iLastX = -1; 
     float iLastY = -1;
     cv::namedWindow("Binary Images");
-    cv::Mat img_hsv, img_thresholded, img_canny, rotated,blurred_frame;
+    cv::Mat img_hsv, img_thresholded, img_canny, rotated;
     
 
     while( true )
@@ -351,7 +351,6 @@ int main(void)
                     	cv::warpPerspective(img_thresholded,rotated,warpAffineMatrix,warp_size,cv::INTER_LINEAR,cv::BORDER_CONSTANT);
 
                         //get area, (check if in range), get x and y
-                        
                         curr_area = cv::contourArea(approx_polys);
                         
                         if (min_target_area < curr_area && curr_area < max_target_area)
@@ -361,19 +360,19 @@ int main(void)
                             // VERBOSETP("Moments area: ",moment_area);
                             if (curr_area > 15000)
                             {//closing in on object so tilt head downwards to focus
-                                Head::GetInstance()->MoveByAngle(0,-2);
+                                Head::GetInstance()->MoveByAngle(0,-5);
                             }
                             else
                             {
-                                //walk straight because target is far away
-                                Head::GetInstance()->MoveByAngle(0,30); //look straight
                                 // get centre of the target, x marks the spot
                                 iLastX = ordered_polys[0].x + ((get_2D_distance(ordered_polys[0],ordered_polys[3]))/2);
                                 iLastY = ordered_polys[0].y + ((get_2D_distance(ordered_polys[0],ordered_polys[1]))/2);
-
+                                Point2D new_ball_pos(iLastX,iLastY);
                                 // std::cout<<"Co-ordinates: [" << iLastX << ", " << iLastY << "]" <<std::endl;
                                 // std::cout<<"Moments: [" << mc[i].x << ", " << mc[i].y << "]" <<std::endl;
-                                Point2D new_ball_pos(iLastX,iLastY);
+
+                                //walk straight because target is far away
+                                Head::GetInstance()->MoveByAngle(0,30); //look straight
                                 tracker.Process(new_ball_pos);
                                 follower.Process(tracker.ball_position);
                                 // usleep(250); 
@@ -387,7 +386,7 @@ int main(void)
                 }
             }
                 cv::imshow("Binary Images",img_thresholded);
-                cv::imshow("Binary Images",img_canny);
+                cv::imshow("canny",img_canny);
                 if(rotated.data)
                     cv::imshow("Rotated",rotated);
                 if(cv::waitKey(30) == 27) break;
