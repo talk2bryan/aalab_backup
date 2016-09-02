@@ -96,7 +96,7 @@ static void set_range_params()
         memcpy(rgb_output->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageSize);
     
         cv::Mat curr_frame=cv::Mat(rgb_output->m_Height,rgb_output->m_Width,CV_8UC3,rgb_output->m_ImageData);
-        cv::Mat curr_hsv, curr_thresholded;
+        cv::Mat curr_hsv,curr_canny, curr_thresholded;
         
         if( curr_frame.data )
         {        
@@ -107,10 +107,13 @@ static void set_range_params()
             cv::inRange(curr_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),curr_thresholded);
             // cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(9,9),2,2);
             cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+            cv::Canny(curr_thresholded,curr_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
+
             // cv::dilate(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
         }
         
         cv::imshow("Thresholded Image",curr_thresholded);
+        cv::imshow("Canny Image",curr_canny);
         cv::imshow("Colour Control",curr_frame);
         
         if(cv::waitKey(30) == 10) 
@@ -242,7 +245,7 @@ int main(void)
     Walking::GetInstance()->m_Joint.SetEnableBodyWithoutHead(true, true);
     MotionManager::GetInstance()->SetEnable(true);
 
-    Head::GetInstance()->MoveByAngle(0,20); //keep head focused on target
+    Head::GetInstance()->MoveByAngle(0,30); //keep head focused on target
 
     int curr_area;
     //values for reporting the X and Y vals for found circle
@@ -283,19 +286,19 @@ int main(void)
             
             if (contours.size() > 0)
             {
-            	// /// Get the moments
-             //    cv::vector<cv::Moments> mu(contours.size() );
-             //    for( int i = 0; i < contours.size(); i++ )
-             //    {
-             //        mu[i] = moments( contours[i], false );
-             //    }
+            	/// Get the moments
+                cv::vector<cv::Moments> mu(contours.size() );
+                for( int i = 0; i < contours.size(); i++ )
+                {
+                    mu[i] = moments( contours[i], false );
+                }
 
-             //    ///  Get the mass centers:
-             //    cv::vector<cv::Point2f> mc( contours.size() );
-             //    for( int i = 0; i < contours.size(); i++ )
-             //    {
-             //        mc[i] = cv::Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 );
-             //    }
+                ///  Get the mass centers:
+                cv::vector<cv::Point2f> mc( contours.size() );
+                for( int i = 0; i < contours.size(); i++ )
+                {
+                    mc[i] = cv::Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 );
+                }
                 for (size_t i = 0; i < contours.size(); ++i)
                 {
                     // int moment_area = mu[i].m00;    
@@ -356,17 +359,17 @@ int main(void)
                         if (min_target_area < curr_area && curr_area < max_target_area)
                         {
                             VERBOSE("Found target");
-                            // VERBOSETP("Area: ", curr_area);
+                            VERBOSETP("Area: ", curr_area);
                             // VERBOSETP("Moments area: ",moment_area);
-                            if (curr_area > 15000)
+                            if (curr_area > 8800) //~50cm away
                             {//closing in on object so tilt head downwards to focus
-                                Head::GetInstance()->MoveByAngle(0,-5);
+                                Head::GetInstance()->MoveByAngle(0,-1);//(0,-0.0005);
                             }
                             else
                             {
                                 // get centre of the target, x marks the spot
-                                iLastX = ordered_polys[0].x + ((get_2D_distance(ordered_polys[0],ordered_polys[3]))/2);
-                                iLastY = ordered_polys[0].y + ((get_2D_distance(ordered_polys[0],ordered_polys[1]))/2);
+                                iLastX = mc[i].x;//ordered_polys[0].x + ((get_2D_distance(ordered_polys[0],ordered_polys[3]))/2);
+                                iLastY = mc[i].y;//ordered_polys[0].y + ((get_2D_distance(ordered_polys[0],ordered_polys[1]))/2);
                                 Point2D new_ball_pos(iLastX,iLastY);
                                 // std::cout<<"Co-ordinates: [" << iLastX << ", " << iLastY << "]" <<std::endl;
                                 // std::cout<<"Moments: [" << mc[i].x << ", " << mc[i].y << "]" <<std::endl;
@@ -374,7 +377,7 @@ int main(void)
                                 //walk straight because target is far away
                                 Head::GetInstance()->MoveByAngle(0,30); //look straight
                                 tracker.Process(new_ball_pos);
-                                follower.Process(tracker.ball_position);
+                                // follower.Process(tracker.ball_position);
                                 // usleep(250); 
                             }
                         }
