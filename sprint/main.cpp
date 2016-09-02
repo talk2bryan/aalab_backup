@@ -4,7 +4,7 @@
  *@author: Bryan Wodi <talk2kamp@gmail.com>
  *@date:  Aug 13, 2016
  *      ADAPTED from robotis tutorial {ball_following}
- *@purpose: sprint towards an object
+ *@purpose: sprint FIRA2016
  */
 #include "CompilerDefinitions.hpp"
 
@@ -71,6 +71,130 @@ void sighandler(int sig)
     exit(0);
 }
 
+static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
+{//based on the Euclidean plane
+    float diffX = pt1.x - pt2.x;
+    float diffY = pt1.y - pt2.y;
+    return sqrt( (diffX * diffX) + (diffY * diffY) );
+}
+
+static void adjust_gait()
+{
+    Walking::GetInstance()->A_MOVE_AMPLITUDE = 0.0; //direction
+    Walking::GetInstance()->X_MOVE_AMPLITUDE = 0.0; //forward/backward
+    Walking::GetInstance()->Start();
+}
+
+static cv::Point3f find_target(cv::Mat& frame)
+{
+    cv::Point3f target_centre;
+    cv::Mat img_canny,rotated;
+    static std::vector<std::vector<cv::Point> > contours; 
+    static std::vector<cv::Point> approx_poly_points;
+    static std::vector<cv::Point> ordered_points;
+    static double target_x, target_y, target_area;
+    static std::vector<cv::Vec4i> hierarchy;
+    
+    //canny, then check if it's a rectangle and check if a circle's in it
+    cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
+    cv::findContours( img_canny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);//CV_RETR_EXTERNAL
+
+    if (contours.size() > 0)
+    {
+        /// Get the moments
+        cv::vector<cv::Moments> mu(contours.size() );
+        for( int i = 0; i < contours.size(); i++ )
+        {
+            mu[i] = moments( contours[i], false );
+        }
+
+        ///  Get the mass centers:
+        cv::vector<cv::Point2f> mc( contours.size() );
+        for( int i = 0; i < contours.size(); i++ )
+        {
+            mc[i] = cv::Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 );
+        }
+        for (size_t i = 0; i < contours.size(); ++i)
+        {
+            // approximate contour with accuracy proportional
+            // to the contour perimeter
+            cv::approxPolyDP( cv::Mat(contours[i]), approx_poly_points, cv::arcLength(cv::Mat(contours[i]), true)*0.05 , true);
+            if ( (approx_poly_points.size() == num_vertices_square) 
+                && (fabs(cv::contourArea(cv::Mat(approx_poly_points))) > min_target_area)
+                && (cv::isContourConvex(approx_poly_points)) 
+                )
+            {   //points are either 
+                /*
+                a   d           OR     b   a
+                b   c //normal         c   d //abnormal
+                */
+                //if the slope between a and c is -ve, then we have the abnormal case
+                ordered_points = approx_poly_points;
+                if(approx_poly_points[0].x > approx_poly_points[2].x) //positive slope
+                {//shift all
+                    ordered_points[0] = approx_poly_points[1];
+                    ordered_points[1] = approx_poly_points[2];
+                    ordered_points[2] = approx_poly_points[3];
+                    ordered_points[3] = approx_poly_points[0];
+                }
+
+                //now the order of points is: top left, bottom left, bottom right, top right.
+                rotated = cv::Mat(transformed_height_width,transformed_height_width,CV_8U); //this will contain our roi
+                cv::Point2f dst_vertices[4]; 
+                //in the order:
+                //top left, bottom left, bottom right, top right
+                dst_vertices[0] = cv::Point(0,0);
+                dst_vertices[1] = cv::Point(0,transformed_height_width-1);
+                dst_vertices[2] = cv::Point(transformed_height_width-1,transformed_height_width-1);
+                dst_vertices[3] = cv::Point(transformed_height_width-1,0);
+
+                cv::Point2f src_vertices[4];
+                src_vertices[0] = ordered_points[0];
+                src_vertices[1] = ordered_points[1];
+                src_vertices[2] = ordered_points[2];
+                src_vertices[3] = ordered_points[3];
+                
+                cv::Mat warpAffineMatrix = cv::getPerspectiveTransform(src_vertices,dst_vertices);
+
+                cv::Size warp_size(transformed_height_width,transformed_height_width);
+                cv::warpPerspective(frame,rotated,warpAffineMatrix,warp_size,cv::INTER_LINEAR,cv::BORDER_CONSTANT);
+
+                //get area, (check if in range), get x and y
+                target_area = cv::contourArea(approx_poly_points);
+                int moment_area = mu[i].m00; 
+                
+                if (min_target_area < target_area && target_area < max_target_area)
+                {//need to add an added layer of verification
+                    
+                    VERBOSE("\nFound target");
+                    VERBOSETP("C_Area: ", target_area);
+                    VERBOSETP("M_Area: ", moment_area);
+
+                    target_x = ordered_points[0].x + ((get_2D_distance(ordered_points[0],ordered_points[3]))/2);
+                    target_y = ordered_points[0].y + ((get_2D_distance(ordered_points[0],ordered_points[1]))/2);
+                    
+                    std::cout<<"C_C: [" << target_x << ", " << target_y << "]" <<std::endl;
+                    std::cout<<"M_C: [" << mc[i].x << ", " << mc[i].y << "]" <<std::endl;
+
+                    target_centre = cv::Point3f(target_x,target_y,target_area);
+                    
+                }//if target
+                else
+                {
+                    target_centre = cv::Point3f(0.0,0.0,0.0);
+                }
+            }//if rect
+        }//for contours
+    }//if contours > 0
+    else
+    {
+        target_centre = cv::Point3f(0.0,0.0,0.0);
+    }
+
+    return target_centre;
+}
+
+
 static void set_range_params()
 {
     std::cout <<"Setting the range for thresholding" <<std::endl;
@@ -79,6 +203,8 @@ static void set_range_params()
     Image* rgb_output = new Image(Camera::WIDTH, Camera::HEIGHT, Image::RGB_PIXEL_SIZE);
     //values for inRange thresholding of red colored objects
     cv::namedWindow("Colour Control", CV_WINDOW_AUTOSIZE);
+    cv::namedWindow("Canny Image", CV_WINDOW_AUTOSIZE);
+    cv::namedWindow("Threshold Image", CV_WINDOW_AUTOSIZE);
 
     //Create trackbars in "Colour Control" window
     cvCreateTrackbar("LowH", "Colour Control", &iLowH, 179);
@@ -108,12 +234,11 @@ static void set_range_params()
             // cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(9,9),2,2);
             cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
             cv::Canny(curr_thresholded,curr_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
-
             // cv::dilate(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
         }
         
-        cv::imshow("Thresholded Image",curr_thresholded);
         cv::imshow("Canny Image",curr_canny);
+        cv::imshow("Threshold Image",curr_thresholded);
         cv::imshow("Colour Control",curr_frame);
         
         if(cv::waitKey(30) == 10) 
@@ -123,12 +248,6 @@ static void set_range_params()
         }
     }
     
-}
-static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
-{//based on the Euclidean plane
-    float diffX = pt1.x - pt2.x;
-    float diffY = pt1.y - pt2.y;
-    return sqrt( (diffX * diffX) + (diffY * diffY) );
 }
 
 /*find  cosine of angle between two vectors from pt0->pt1 and from pt0->pt2 */
@@ -247,12 +366,14 @@ int main(void)
 
     Head::GetInstance()->MoveByAngle(0,30); //keep head focused on target
 
-    int curr_area;
-    //values for reporting the X and Y vals for found circle
+    
+    //values for reporting the X and Y and area vals for found target
     float iLastX = -1; 
     float iLastY = -1;
+    int curr_area;
+
     cv::namedWindow("Binary Images");
-    cv::Mat img_hsv, img_thresholded, img_canny, rotated;
+    cv::Mat img_hsv, img_thresholded;// img_canny, rotated;
     
 
     while( true )
@@ -263,140 +384,52 @@ int main(void)
 
         if( mat_frame.data )
         {
-            img_thresholded = cv::Mat(mat_frame.size(),CV_8U);
-            static std::vector<std::vector<cv::Point> > contours; 
-            // static std::vector<std::vector<cv::Point> > squares;
-            static std::vector<cv::Point> approx_polys;
-            static std::vector<cv::Point> ordered_polys;
-            //first convert cam image to BGR to properly correctly convert to HSV
             cv::cvtColor(mat_frame,mat_frame,cv::COLOR_RGB2BGR);
             cv::cvtColor(mat_frame,img_hsv,cv::COLOR_BGR2HSV);
             
+            img_thresholded = cv::Mat(mat_frame.size(),CV_8U);
             cv::inRange(img_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),img_thresholded);
             // cv::GaussianBlur(img_thresholded,img_thresholded,cv::Size(9,9),2,2);
 
             cv::erode(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
             // cv::dilate(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
 
-            std::vector<cv::Vec4i> hierarchy;
-            //canny, then check if it's a rectangle and check if a circle's in it
-            cv::Canny(img_thresholded,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
+            cv::Point3f img_target= find_target(img_thresholded); //rtn x, y and area as z
+            curr_area = img_target.z;
 
-            cv::findContours( img_canny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);//CV_RETR_EXTERNAL
-            
-            if (contours.size() > 0)
+            if (curr_area != 0)
             {
-            	/// Get the moments
-                cv::vector<cv::Moments> mu(contours.size() );
-                for( int i = 0; i < contours.size(); i++ )
-                {
-                    mu[i] = moments( contours[i], false );
+                //found target
+                iLastX = img_target.x;
+                iLastY = img_target.y;
+
+                if (curr_area > 9000) //~50cm away
+                {//closing in on object so tilt head downwards to focus
+                    Head::GetInstance()->MoveByAngleOffset(0,-1);
                 }
-
-                ///  Get the mass centers:
-                cv::vector<cv::Point2f> mc( contours.size() );
-                for( int i = 0; i < contours.size(); i++ )
+                else
                 {
-                    mc[i] = cv::Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 );
-                }
-                for (size_t i = 0; i < contours.size(); ++i)
-                {
-                    // int moment_area = mu[i].m00;    
-                    // approximate contour with accuracy proportional
-                    // to the contour perimeter
-                    cv::approxPolyDP( cv::Mat(contours[i]), approx_polys, cv::arcLength(cv::Mat(contours[i]), true)*0.05 , true);
-                    if ( (approx_polys.size() == num_vertices_square) 
-                        && (fabs(cv::contourArea(cv::Mat(approx_polys))) > min_target_area)
-                        && (cv::isContourConvex(approx_polys)) 
-                        )
-                    {
-
-                        // std::sort(approx_polys.begin(), approx_polys.end(),compare_points);
-                        
-                        //points are either 
-                        /*
-                        a   d   
-                        b   c >> normal
-                          OR
-                        b   a
-                        c   d >> abnormal
-                        */
-                        //if the slope between a and c is -ve, then we have the abnormal case
-                        ordered_polys = approx_polys;
-                        if(approx_polys[0].x > approx_polys[2].x) //positive slope
-                        {//shift all
-                            ordered_polys[0] = approx_polys[1];
-                            ordered_polys[1] = approx_polys[2];
-                            ordered_polys[2] = approx_polys[3];
-                            ordered_polys[3] = approx_polys[0];
-
-                        }
-
-                        //now the order of points is: top left, bottom left, bottom right, top right.
-                        rotated = cv::Mat(transformed_height_width,transformed_height_width,CV_8U); //this will contain our roi
-                    	cv::Point2f dst_vertices[4]; 
-                    	//in the order:
-                        //top left, bottom left, bottom right, top right
-                    	dst_vertices[0] = cv::Point(0,0);
-                    	dst_vertices[1] = cv::Point(0,transformed_height_width-1);
-                    	dst_vertices[2] = cv::Point(transformed_height_width-1,transformed_height_width-1);
-                    	dst_vertices[3] = cv::Point(transformed_height_width-1,0);
-
-                        cv::Point2f src_vertices[4];
-                        src_vertices[0] = ordered_polys[0];
-                        src_vertices[1] = ordered_polys[1];
-                        src_vertices[2] = ordered_polys[2];
-                        src_vertices[3] = ordered_polys[3];
-                    	
-                    	cv::Mat warpAffineMatrix = cv::getPerspectiveTransform(src_vertices,dst_vertices);
-
-                    	cv::Size warp_size(transformed_height_width,transformed_height_width);
-                    	cv::warpPerspective(img_thresholded,rotated,warpAffineMatrix,warp_size,cv::INTER_LINEAR,cv::BORDER_CONSTANT);
-
-                        //get area, (check if in range), get x and y
-                        curr_area = cv::contourArea(approx_polys);
-                        
-                        if (min_target_area < curr_area && curr_area < max_target_area)
-                        {
-                            VERBOSE("Found target");
-                            VERBOSETP("Area: ", curr_area);
-                            // VERBOSETP("Moments area: ",moment_area);
-                            if (curr_area > 8800) //~50cm away
-                            {//closing in on object so tilt head downwards to focus
-                                Head::GetInstance()->MoveByAngle(0,-1);//(0,-0.0005);
-                            }
-                            else
-                            {
-                                // get centre of the target, x marks the spot
-                                iLastX = mc[i].x;//ordered_polys[0].x + ((get_2D_distance(ordered_polys[0],ordered_polys[3]))/2);
-                                iLastY = mc[i].y;//ordered_polys[0].y + ((get_2D_distance(ordered_polys[0],ordered_polys[1]))/2);
-                                Point2D new_ball_pos(iLastX,iLastY);
-                                // std::cout<<"Co-ordinates: [" << iLastX << ", " << iLastY << "]" <<std::endl;
-                                // std::cout<<"Moments: [" << mc[i].x << ", " << mc[i].y << "]" <<std::endl;
-
-                                //walk straight because target is far away
-                                Head::GetInstance()->MoveByAngle(0,30); //look straight
-                                tracker.Process(new_ball_pos);
-                                // follower.Process(tracker.ball_position);
-                                // usleep(250); 
-                            }
-                        }
-                        else
-                        {
-                            VERBOSE("not finding target...");
-                        }
-                    }
+                    // get centre of the target, x marks the spot
+                    Point2D new_ball_pos(iLastX,iLastY);
+                    
+                    //walk straight because target is far away
+                    Head::GetInstance()->MoveByAngle(0,30); //look straight
+                    tracker.Process(new_ball_pos);
+                    follower.Process(tracker.ball_position);
+                    // usleep(250); 
                 }
             }
-                cv::imshow("Binary Images",img_thresholded);
-                cv::imshow("canny",img_canny);
-                if(rotated.data)
-                    cv::imshow("Rotated",rotated);
-                if(cv::waitKey(30) == 27) break;
-
-            // }
-        } //outer if
+            else
+            {
+                //target not found
+                VERBOSE("\nnot finding target...");
+                adjust_gait();
+            }
+            cv::imshow("Binary Images",img_thresholded);
+            cv::imshow("Live feed", mat_frame);
+            if(cv::waitKey(30) == 27) break;
+        } // if mat_frame.data
        // usleep(1000);
-    } //while
+    } //outermost while
     return 0;
 }
