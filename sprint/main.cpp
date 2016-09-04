@@ -6,7 +6,6 @@
  *      ADAPTED from robotis tutorial {ball_following}
  *@purpose: sprint FIRA2016
  */
-#include "CompilerDefinitions.hpp"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -26,6 +25,8 @@
 
 #include "StatusCheck.h"
 #include "VisionMode.h"
+
+#include "CompilerDefinitions.hpp"
 
 #ifdef MX28_1024
 #define MOTION_FILE_PATH    "../../../Data/motion_1024.bin"
@@ -82,6 +83,7 @@ static void adjust_gait()
 {
     Walking::GetInstance()->A_MOVE_AMPLITUDE = 0.0; //direction
     Walking::GetInstance()->X_MOVE_AMPLITUDE = 0.0; //forward/backward
+    Walking::GetInstance()->PERIOD_TIME = 600;//default value from framework
     Walking::GetInstance()->Start();
 }
 
@@ -138,6 +140,12 @@ static cv::Point3f find_target(cv::Mat& frame)
                     ordered_points[3] = approx_poly_points[0];
                 }
 
+                for (int i = 0; i < 4; ++i)
+                {
+                    VERBOSE(ordered_points.at(i));
+                }
+                std::cout<<std::endl;
+
                 //now the order of points is: top left, bottom left, bottom right, top right.
                 rotated = cv::Mat(transformed_height_width,transformed_height_width,CV_8U); //this will contain our roi
                 cv::Point2f dst_vertices[4]; 
@@ -166,12 +174,26 @@ static cv::Point3f find_target(cv::Mat& frame)
                 if (min_target_area < target_area && target_area < max_target_area)
                 {//need to add an added layer of verification
                     
-                    VERBOSE("\nFound target");
+                    VERBOSE("Found target");
                     VERBOSETP("C_Area: ", target_area);
                     VERBOSETP("M_Area: ", moment_area);
 
-                    target_x = ordered_points[0].x + ((get_2D_distance(ordered_points[0],ordered_points[3]))/2);
-                    target_y = ordered_points[0].y + ((get_2D_distance(ordered_points[0],ordered_points[1]))/2);
+                    target_x = (get_2D_distance(cv::Point(0,0), cv::Point(transformed_height_width-1,0))) /2;
+                    target_y = (get_2D_distance(cv::Point(0,0),cv::Point(0,transformed_height_width-1)) ) /2;
+
+                    VERBOSETP("target_x: ", target_x);
+                    VERBOSETP("target_y: ", target_y);
+                    if(rotated.data)
+                    {
+                        VERBOSETP("Size: ", rotated.size());
+                        VERBOSETP("Cols: ",rotated.cols);
+                        VERBOSETP("Rows: ",rotated.rows);
+                        cv::circle(rotated,cv::Point(60,60),10,cv::Scalar(255,0,0));
+                        cv::imshow("rotated",rotated);
+                        // cv::circle(rotated,cv::Point(target_x,target_y),10,cv::Scalar(255,0,0));
+                        cv::imwrite("rotated.png",rotated);
+                    }
+                    
                     
                     std::cout<<"C_C: [" << target_x << ", " << target_y << "]" <<std::endl;
                     std::cout<<"M_C: [" << mc[i].x << ", " << mc[i].y << "]" <<std::endl;
@@ -233,6 +255,7 @@ static void set_range_params()
             cv::inRange(curr_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),curr_thresholded);
             // cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(9,9),2,2);
             cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+            cv::imwrite("threshold.png",curr_thresholded);
             cv::Canny(curr_thresholded,curr_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
             // cv::dilate(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
         }
@@ -348,6 +371,7 @@ int main(void)
     cm730.SyncWrite(MX28::P_GOAL_POSITION_L, 5, JointData::NUMBER_OF_JOINTS - 1, param);
 
     //values for inRange thresholding of red colored objects
+    Head::GetInstance()->MoveByAngle(0,-10);
     set_range_params();
     VERBOSETP("iLowH: ",iLowH);
     VERBOSETP("iHighH: ",iHighH);
@@ -372,7 +396,7 @@ int main(void)
     float iLastY = -1;
     int curr_area;
 
-    cv::namedWindow("Binary Images");
+    cv::namedWindow("Binary Image");
     cv::Mat img_hsv, img_thresholded;// img_canny, rotated;
     
 
@@ -403,33 +427,45 @@ int main(void)
                 iLastX = img_target.x;
                 iLastY = img_target.y;
 
-                if (curr_area > 9000) //~50cm away
-                {//closing in on object so tilt head downwards to focus
-                    Head::GetInstance()->MoveByAngleOffset(0,-1);
-                }
-                else
-                {
-                    // get centre of the target, x marks the spot
+                // if (curr_area <= 17500) //30cm away
+                // {
                     Point2D new_ball_pos(iLastX,iLastY);
-                    
-                    //walk straight because target is far away
-                    Head::GetInstance()->MoveByAngle(0,30); //look straight
                     tracker.Process(new_ball_pos);
-                    follower.Process(tracker.ball_position);
-                    // usleep(250); 
-                }
+                    // follower.Process(tracker.ball_position);
+                // }
+
+                // if (curr_area > 9000) //~50cm away
+                // {//closing in on object so tilt head downwards to focus
+                //     // Head::GetInstance()->MoveByAngleOffset(0,-1);
+                //     Point2D new_ball_pos(iLastX,iLastY);
+                //     tracker.Process(new_ball_pos);
+                //     // follower.Process(tracker.ball_position);
+                //     // usleep(250); 
+                // }
+                // else
+                // {
+                //     // get centre of the target, x marks the spot
+                //     Point2D new_ball_pos(iLastX,iLastY);
+                    
+                //     //walk straight because target is far away
+                //     // Head::GetInstance()->MoveByAngle(0,30); //look straight
+                //     tracker.Process(new_ball_pos);
+                //     // follower.Process(tracker.ball_position);
+                //     // usleep(250); 
+                // }
             }
             else
             {
                 //target not found
-                VERBOSE("\nnot finding target...");
-                adjust_gait();
+                VERBOSE("not finding target...");
+                // Head::GetInstance()->MoveToHome();
+                // adjust_gait();
+                // usleep(200);
             }
-            cv::imshow("Binary Images",img_thresholded);
+            cv::imshow("Binary Image",img_thresholded);
             cv::imshow("Live feed", mat_frame);
             if(cv::waitKey(30) == 27) break;
         } // if mat_frame.data
-       // usleep(1000);
     } //outermost while
     return 0;
 }
