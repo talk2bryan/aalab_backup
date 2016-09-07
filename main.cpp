@@ -94,7 +94,7 @@ static cv::Point3f find_target(cv::Mat& frame)
     static std::vector<std::vector<cv::Point> > contours; 
     static std::vector<cv::Point> approx_poly_points;
     static std::vector<cv::Point> ordered_points;
-    static double target_x, target_y, target_area;
+    static double target_x, target_y, target_area, sum_x, sum_y; //finding the x and y based on averaged vals
     static std::vector<cv::Vec4i> hierarchy;
     
     //canny, then check if it's a rectangle and check if a circle's in it
@@ -103,19 +103,6 @@ static cv::Point3f find_target(cv::Mat& frame)
 
     if (contours.size() > 0)
     {
-        /// Get the moments
-        cv::vector<cv::Moments> mu(contours.size() );
-        for( int i = 0; i < contours.size(); i++ )
-        {
-            mu[i] = moments( contours[i], false );
-        }
-
-        ///  Get the mass centers:
-        cv::vector<cv::Point2f> mc( contours.size() );
-        for( int i = 0; i < contours.size(); i++ )
-        {
-            mc[i] = cv::Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 );
-        }
         for (size_t i = 0; i < contours.size(); ++i)
         {
             // approximate contour with accuracy proportional
@@ -169,37 +156,27 @@ static cv::Point3f find_target(cv::Mat& frame)
 
                 //get area, (check if in range), get x and y
                 target_area = cv::contourArea(approx_poly_points);
-                int moment_area = mu[i].m00; 
-                
+                                
                 if (min_target_area < target_area && target_area < max_target_area)
-                {//need to add an added layer of verification
+                {//need to add an added layer of verification -- TODO black patch detection
                     
                     VERBOSE("Found target");
-                    VERBOSETP("C_Area: ", target_area);
-                    VERBOSETP("M_Area: ", moment_area);
+                    
+                    for (int i = 0; i < approx_poly_points.size(); ++i)
+                    {
+                        sum_x += approx_poly_points.at(i).x;
+                        sum_y += approx_poly_points.at(i).y;
+                    }
+                    target_x = sum_y/approx_poly_points.size();
+                    target_y = sum_x/approx_poly_points.size();
+                    // target_x = (get_2D_distance(cv::Point(0,0), cv::Point(transformed_height_width-1,0))) /2;
+                    // target_y = (get_2D_distance(cv::Point(0,0),cv::Point(0,transformed_height_width-1)) ) /2;
 
-                    target_x = (get_2D_distance(cv::Point(0,0), cv::Point(transformed_height_width-1,0))) /2;
-                    target_y = (get_2D_distance(cv::Point(0,0),cv::Point(0,transformed_height_width-1)) ) /2;
-
-                    VERBOSETP("target_x: ", target_x);
-                    VERBOSETP("target_y: ", target_y);
                     if(rotated.data)
                     {
-                        VERBOSETP("Size: ", rotated.size());
-                        VERBOSETP("Cols: ",rotated.cols);
-                        VERBOSETP("Rows: ",rotated.rows);
-                        cv::circle(rotated,cv::Point(60,60),10,cv::Scalar(255,0,0));
                         cv::imshow("rotated",rotated);
-                        // cv::circle(rotated,cv::Point(target_x,target_y),10,cv::Scalar(255,0,0));
-                        cv::imwrite("rotated.png",rotated);
                     }
-                    
-                    
-                    std::cout<<"C_C: [" << target_x << ", " << target_y << "]" <<std::endl;
-                    std::cout<<"M_C: [" << mc[i].x << ", " << mc[i].y << "]" <<std::endl;
-
-                    target_centre = cv::Point3f(target_x,target_y,target_area);
-                    
+                    target_centre = cv::Point3f(target_x, target_y,target_area);
                 }//if target
                 else
                 {
@@ -423,43 +400,42 @@ int main(void)
 
             if (curr_area != 0)
             {
+                VERBOSETP("Target area: ",curr_area);
                 //found target
                 iLastX = img_target.x;
                 iLastY = img_target.y;
-
                 // if (curr_area <= 17500) //30cm away
                 // {
-                    Point2D new_ball_pos(iLastX,iLastY);
-                    tracker.Process(new_ball_pos);
-                    // follower.Process(tracker.ball_position);
+                //     Point2D new_ball_pos(iLastX,iLastY);
+                //     tracker.Process(new_ball_pos);
+                //     follower.Process(tracker.ball_position);
                 // }
 
-                // if (curr_area > 9000) //~50cm away
-                // {//closing in on object so tilt head downwards to focus
-                //     // Head::GetInstance()->MoveByAngleOffset(0,-1);
-                //     Point2D new_ball_pos(iLastX,iLastY);
-                //     tracker.Process(new_ball_pos);
-                //     // follower.Process(tracker.ball_position);
-                //     // usleep(250); 
-                // }
-                // else
-                // {
-                //     // get centre of the target, x marks the spot
-                //     Point2D new_ball_pos(iLastX,iLastY);
-                    
-                //     //walk straight because target is far away
-                //     // Head::GetInstance()->MoveByAngle(0,30); //look straight
-                //     tracker.Process(new_ball_pos);
-                //     // follower.Process(tracker.ball_position);
-                //     // usleep(250); 
-                // }
+                if (curr_area > 9000) //~50cm away
+                {//closing in on object so tilt head downwards to focus
+                    Head::GetInstance()->MoveByAngleOffset(0,-1);
+                    Point2D new_ball_pos(iLastX,iLastY);
+                    tracker.Process(new_ball_pos);
+                    follower.Process(tracker.ball_position);
+                    usleep(250); 
+                }
+                else
+                {
+                    // get centre of the target, x marks the spot
+                    Point2D new_ball_pos(iLastX,iLastY);
+                    //walk straight because target is far away
+                    Head::GetInstance()->MoveByAngle(0,30); //look straight
+                    tracker.Process(new_ball_pos);
+                    follower.Process(tracker.ball_position);
+                    usleep(250); 
+                }
             }
             else
             {
                 //target not found
                 VERBOSE("not finding target...");
                 // Head::GetInstance()->MoveToHome();
-                // adjust_gait();
+                adjust_gait();
                 // usleep(200);
             }
             cv::imshow("Binary Image",img_thresholded);
