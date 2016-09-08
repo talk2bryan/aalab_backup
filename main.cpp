@@ -81,6 +81,7 @@ static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
 
 static void adjust_gait()
 {
+    Head::GetInstance()->MoveByAngle(0,30);
     Walking::GetInstance()->A_MOVE_AMPLITUDE = 0.0; //direction
     Walking::GetInstance()->X_MOVE_AMPLITUDE = 0.0; //forward/backward
     Walking::GetInstance()->PERIOD_TIME = 600;//default value from framework
@@ -101,10 +102,24 @@ static cv::Point3f find_target(cv::Mat& frame)
     cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
     cv::findContours( img_canny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);//CV_RETR_EXTERNAL
 
+    /// Get the moments
+    cv::vector<cv::Moments> mu(contours.size() );
+    for( int i = 0; i < contours.size(); i++ )
+    {
+     mu[i] = moments( contours[i], false );
+    }
+
+    ///  Get the mass centers:
+    cv::vector<cv::Point2f> mc( contours.size() );
+    for( int i = 0; i < contours.size(); i++ )
+    {
+     mc[i] = cv::Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 );
+    }
+
     if (contours.size() > 0)
     {
         for (size_t i = 0; i < contours.size(); ++i)
-        {
+        {int moment_area = mu[i].m00; 
             // approximate contour with accuracy proportional
             // to the contour perimeter
             cv::approxPolyDP( cv::Mat(contours[i]), approx_poly_points, cv::arcLength(cv::Mat(contours[i]), true)*0.05 , true);
@@ -126,12 +141,6 @@ static cv::Point3f find_target(cv::Mat& frame)
                     ordered_points[2] = approx_poly_points[3];
                     ordered_points[3] = approx_poly_points[0];
                 }
-
-                for (int i = 0; i < 4; ++i)
-                {
-                    VERBOSE(ordered_points.at(i));
-                }
-                std::cout<<std::endl;
 
                 //now the order of points is: top left, bottom left, bottom right, top right.
                 rotated = cv::Mat(transformed_height_width,transformed_height_width,CV_8U); //this will contain our roi
@@ -156,19 +165,20 @@ static cv::Point3f find_target(cv::Mat& frame)
 
                 //get area, (check if in range), get x and y
                 target_area = cv::contourArea(approx_poly_points);
-                                
+
                 if (min_target_area < target_area && target_area < max_target_area)
                 {//need to add an added layer of verification -- TODO black patch detection
+                    sum_y = 0.0;
+                    sum_x = 0.0;
                     
                     VERBOSE("Found target");
-                    
                     for (int i = 0; i < approx_poly_points.size(); ++i)
                     {
                         sum_x += approx_poly_points.at(i).x;
                         sum_y += approx_poly_points.at(i).y;
                     }
-                    target_x = sum_y/approx_poly_points.size();
-                    target_y = sum_x/approx_poly_points.size();
+                    target_x = sum_x/approx_poly_points.size();
+                    target_y = sum_y/approx_poly_points.size();
                     // target_x = (get_2D_distance(cv::Point(0,0), cv::Point(transformed_height_width-1,0))) /2;
                     // target_y = (get_2D_distance(cv::Point(0,0),cv::Point(0,transformed_height_width-1)) ) /2;
 
@@ -177,6 +187,7 @@ static cv::Point3f find_target(cv::Mat& frame)
                         cv::imshow("rotated",rotated);
                     }
                     target_centre = cv::Point3f(target_x, target_y,target_area);
+
                 }//if target
                 else
                 {
@@ -232,7 +243,7 @@ static void set_range_params()
             cv::inRange(curr_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),curr_thresholded);
             // cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(9,9),2,2);
             cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
-            cv::imwrite("threshold.png",curr_thresholded);
+            // cv::imwrite("threshold.png",curr_thresholded);
             cv::Canny(curr_thresholded,curr_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
             // cv::dilate(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
         }
@@ -348,7 +359,6 @@ int main(void)
     cm730.SyncWrite(MX28::P_GOAL_POSITION_L, 5, JointData::NUMBER_OF_JOINTS - 1, param);
 
     //values for inRange thresholding of red colored objects
-    Head::GetInstance()->MoveByAngle(0,-10);
     set_range_params();
     VERBOSETP("iLowH: ",iLowH);
     VERBOSETP("iHighH: ",iHighH);
@@ -404,31 +414,31 @@ int main(void)
                 //found target
                 iLastX = img_target.x;
                 iLastY = img_target.y;
-                // if (curr_area <= 17500) //30cm away
-                // {
-                //     Point2D new_ball_pos(iLastX,iLastY);
-                //     tracker.Process(new_ball_pos);
-                //     follower.Process(tracker.ball_position);
-                // }
-
-                if (curr_area > 9000) //~50cm away
-                {//closing in on object so tilt head downwards to focus
-                    Head::GetInstance()->MoveByAngleOffset(0,-1);
-                    Point2D new_ball_pos(iLastX,iLastY);
-                    tracker.Process(new_ball_pos);
-                    follower.Process(tracker.ball_position);
-                    usleep(250); 
+                if (curr_area <= 10000) //30cm away
+                {
+                    if (curr_area > 9000) //~50cm away
+                    {//closing in on object so tilt head downwards to focus
+                        Head::GetInstance()->MoveByAngleOffset(0,-1);
+                        Point2D new_ball_pos(iLastX,iLastY);
+                        tracker.Process(new_ball_pos);
+                        follower.Process(tracker.ball_position);
+                        // usleep(250); 
+                    }
+                    else
+                    {
+                        // get centre of the target, x marks the spot
+                        Point2D new_ball_pos(iLastX,iLastY);
+                        //walk straight because target is far away
+                        Head::GetInstance()->MoveByAngle(0,30); //look straight
+                        tracker.Process(new_ball_pos);
+                        follower.Process(tracker.ball_position);
+                        // usleep(250); 
+                    }
                 }
                 else
-                {
-                    // get centre of the target, x marks the spot
-                    Point2D new_ball_pos(iLastX,iLastY);
-                    //walk straight because target is far away
-                    Head::GetInstance()->MoveByAngle(0,30); //look straight
-                    tracker.Process(new_ball_pos);
-                    follower.Process(tracker.ball_position);
-                    usleep(250); 
-                }
+                    break;
+
+                
             }
             else
             {
