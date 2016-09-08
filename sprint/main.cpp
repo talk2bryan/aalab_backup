@@ -102,24 +102,10 @@ static cv::Point3f find_target(cv::Mat& frame)
     cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
     cv::findContours( img_canny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);//CV_RETR_EXTERNAL
 
-    /// Get the moments
-    cv::vector<cv::Moments> mu(contours.size() );
-    for( int i = 0; i < contours.size(); i++ )
-    {
-     mu[i] = moments( contours[i], false );
-    }
-
-    ///  Get the mass centers:
-    cv::vector<cv::Point2f> mc( contours.size() );
-    for( int i = 0; i < contours.size(); i++ )
-    {
-     mc[i] = cv::Point2f( mu[i].m10/mu[i].m00 , mu[i].m01/mu[i].m00 );
-    }
-
     if (contours.size() > 0)
     {
         for (size_t i = 0; i < contours.size(); ++i)
-        {int moment_area = mu[i].m00; 
+        {
             // approximate contour with accuracy proportional
             // to the contour perimeter
             cv::approxPolyDP( cv::Mat(contours[i]), approx_poly_points, cv::arcLength(cv::Mat(contours[i]), true)*0.05 , true);
