@@ -360,6 +360,7 @@ int main(void)
     Head::GetInstance()->m_Joint.SetEnableHeadOnly(true, true);
     Walking::GetInstance()->m_Joint.SetEnableBodyWithoutHead(true, true);
     MotionManager::GetInstance()->SetEnable(true);
+    Walking::GetInstance()->STEP_FB_RATIO = 1.0;
 
     Head::GetInstance()->MoveByAngle(0,30); //keep head focused on target
 
@@ -402,12 +403,25 @@ int main(void)
                 iLastY = img_target.y;
                 if (curr_area <= 10000) //30cm away
                 {
+                    // Point2D new_ball_pos(iLastX,iLastY);
+                    //     //walk straight because target is far away
+                        // Head::GetInstance()->MoveByAngle(0,30); //look straight
+                        // tracker.Process(new_ball_pos);
+                        // Walking::GetInstance()->Start();
+                        // usleep((Robot::Walking::GetInstance()->PERIOD_TIME * 10)*1000); //10 steps?
+                        // Walking::GetInstance()->Stop();
+                        // follower.Process(tracker.ball_position);
+                        // usleep(250); 
+
                     if (curr_area > 9000) //~50cm away
                     {//closing in on object so tilt head downwards to focus
-                        Head::GetInstance()->MoveByAngleOffset(0,-1);
+                        
                         Point2D new_ball_pos(iLastX,iLastY);
+                        Head::GetInstance()->MoveByAngleOffset(0,-1);
+                        // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;
                         tracker.Process(new_ball_pos);
                         follower.Process(tracker.ball_position);
+                        usleep((Walking::GetInstance()->PERIOD_TIME * 3)*1000);
                         // usleep(250); 
                     }
                     else
@@ -416,13 +430,15 @@ int main(void)
                         Point2D new_ball_pos(iLastX,iLastY);
                         //walk straight because target is far away
                         Head::GetInstance()->MoveByAngle(0,30); //look straight
+                        // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;// Walking::GetInstance()->STEP_FB_RATIO = 1.0
                         tracker.Process(new_ball_pos);
                         follower.Process(tracker.ball_position);
+                        usleep((Robot::Walking::GetInstance()->PERIOD_TIME * 3)*1000);
                         // usleep(250); 
                     }
                 }
                 else
-                    break;
+                    Walking::GetInstance()->Stop();
 
                 
             }
