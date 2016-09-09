@@ -49,7 +49,9 @@ static int iHighV = 255;
 
 static bool found_target = false;
 static int target_not_found_count = 0;
+
 static double default_period_time;
+static double default_x_move_amp;
 
 static const int canny_threshold = 100;
 static const int canny_ratio = 3;
@@ -84,24 +86,27 @@ static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
 
 static void adjust_gait()
 {
+    VERBOSE("adjust_gait");
     target_not_found_count++;
     //target search is flawed
-    if(!found_target && target_not_found_count > 10)
-    {
-        if(target_not_found_count % 2 == 0)
+    //if((found_target == false))// && target_not_found_count > 3)
+    //{
+        if( (target_not_found_count % 2) == 0)
         {
-            Head::GetInstance()->MoveByAngle(-10,0);
+            Head::GetInstance()->MoveByAngle(-30,30);
+            VERBOSE("pan left");
         }
         else
         {
-            Head::GetInstance()->MoveByAngle(10,0);
+            Head::GetInstance()->MoveToHome();
+            Head::GetInstance()->MoveByAngle(30,30);
+            VERBOSE("pan right");
         }
         target_not_found_count = 0;
-    }
     // Head::GetInstance()->MoveByAngle(0,30);
     Walking::GetInstance()->A_MOVE_AMPLITUDE = 0.0; //direction
     Walking::GetInstance()->X_MOVE_AMPLITUDE = 0.0; //forward/backward
-    Walking::GetInstance()->PERIOD_TIME = 600;//default value from framework
+    Walking::GetInstance()->PERIOD_TIME = 600;//from framework
     Walking::GetInstance()->Start();
 }
 
@@ -379,6 +384,7 @@ int main(void)
     Walking::GetInstance()->STEP_FB_RATIO = 1.0;
 
     default_period_time = Walking::GetInstance()->PERIOD_TIME;
+    default_x_move_amp =  Walking::GetInstance()->X_MOVE_AMPLITUDE;
 
     Head::GetInstance()->MoveByAngle(0,30); //keep head focused on target
 
@@ -421,19 +427,8 @@ int main(void)
                 iLastY = img_target.y;
                 if (curr_area <= 10000) //30cm away
                 {
-                    // Point2D new_ball_pos(iLastX,iLastY);
-                    //     //walk straight because target is far away
-                        // Head::GetInstance()->MoveByAngle(0,30); //look straight
-                        // tracker.Process(new_ball_pos);
-                        // Walking::GetInstance()->Start();
-                        // usleep((Robot::Walking::GetInstance()->PERIOD_TIME * 10)*1000); //10 steps?
-                        // Walking::GetInstance()->Stop();
-                        // follower.Process(tracker.ball_position);
-                        // usleep(250); 
-
-                    if (curr_area > 9000) //~50cm away
+                    if (curr_area > 7200) //~50cm away
                     {//closing in on object so tilt head downwards to focus
-                        
                         Point2D new_ball_pos(iLastX,iLastY);
                         Head::GetInstance()->MoveByAngleOffset(0,-1);
                         // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;
@@ -445,7 +440,6 @@ int main(void)
                     else
                     {
                         //TODO - tweak period time to increase speed -----
-
                         // get centre of the target, x marks the spot
                         Point2D new_ball_pos(iLastX,iLastY);
                         //walk straight because target is far away
@@ -454,6 +448,7 @@ int main(void)
                         tracker.Process(new_ball_pos);
                         follower.Process(tracker.ball_position);
                         Walking::GetInstance()->PERIOD_TIME = 300;
+                        Walking::GetInstance()->X_MOVE_AMPLITUDE = 10.0;
                         // usleep(250); 
                     }
                 }
@@ -465,10 +460,10 @@ int main(void)
             {
                 //target not found
                 VERBOSE("not finding target...");
-                // Head::GetInstance()->MoveToHome();
+                VERBOSETP("target_not_found_count: ",target_not_found_count);
                 adjust_gait();
                 Walking::GetInstance()->PERIOD_TIME = default_period_time;
-
+                Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
                 // usleep(200);
             }
             cv::imshow("Binary Image",img_thresholded);
