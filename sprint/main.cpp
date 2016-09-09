@@ -47,6 +47,9 @@ static int iHighS = 255;
 static int iLowV = 0;
 static int iHighV = 255;
 
+static bool found_target = false;
+static int target_not_found_count = 0;
+static double default_period_time;
 
 static const int canny_threshold = 100;
 static const int canny_ratio = 3;
@@ -81,7 +84,21 @@ static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
 
 static void adjust_gait()
 {
-    Head::GetInstance()->MoveByAngle(0,30);
+    target_not_found_count++;
+    //target search is flawed
+    if(!found_target && target_not_found_count > 10)
+    {
+        if(target_not_found_count % 2 == 0)
+        {
+            Head::GetInstance()->MoveByAngle(-10,0);
+        }
+        else
+        {
+            Head::GetInstance()->MoveByAngle(10,0);
+        }
+        target_not_found_count = 0;
+    }
+    // Head::GetInstance()->MoveByAngle(0,30);
     Walking::GetInstance()->A_MOVE_AMPLITUDE = 0.0; //direction
     Walking::GetInstance()->X_MOVE_AMPLITUDE = 0.0; //forward/backward
     Walking::GetInstance()->PERIOD_TIME = 600;//default value from framework
@@ -158,6 +175,7 @@ static cv::Point3f find_target(cv::Mat& frame)
                     sum_x = 0.0;
                     
                     VERBOSE("Found target");
+                    found_target = true;
                     for (int i = 0; i < approx_poly_points.size(); ++i)
                     {
                         sum_x += approx_poly_points.at(i).x;
@@ -165,8 +183,6 @@ static cv::Point3f find_target(cv::Mat& frame)
                     }
                     target_x = sum_x/approx_poly_points.size();
                     target_y = sum_y/approx_poly_points.size();
-                    // target_x = (get_2D_distance(cv::Point(0,0), cv::Point(transformed_height_width-1,0))) /2;
-                    // target_y = (get_2D_distance(cv::Point(0,0),cv::Point(0,transformed_height_width-1)) ) /2;
 
                     if(rotated.data)
                     {
@@ -362,6 +378,8 @@ int main(void)
     MotionManager::GetInstance()->SetEnable(true);
     Walking::GetInstance()->STEP_FB_RATIO = 1.0;
 
+    default_period_time = Walking::GetInstance()->PERIOD_TIME;
+
     Head::GetInstance()->MoveByAngle(0,30); //keep head focused on target
 
     
@@ -421,11 +439,13 @@ int main(void)
                         // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;
                         tracker.Process(new_ball_pos);
                         follower.Process(tracker.ball_position);
-                        usleep((Walking::GetInstance()->PERIOD_TIME * 3)*1000);
+                        Walking::GetInstance()->PERIOD_TIME = default_period_time;
                         // usleep(250); 
                     }
                     else
                     {
+                        //TODO - tweak period time to increase speed -----
+
                         // get centre of the target, x marks the spot
                         Point2D new_ball_pos(iLastX,iLastY);
                         //walk straight because target is far away
@@ -433,14 +453,13 @@ int main(void)
                         // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;// Walking::GetInstance()->STEP_FB_RATIO = 1.0
                         tracker.Process(new_ball_pos);
                         follower.Process(tracker.ball_position);
-                        usleep((Robot::Walking::GetInstance()->PERIOD_TIME * 3)*1000);
+                        Walking::GetInstance()->PERIOD_TIME = 300;
                         // usleep(250); 
                     }
                 }
                 else
-                    Walking::GetInstance()->Stop();
-
-                
+                    if( Walking::GetInstance()->IsRunning() )
+                        Walking::GetInstance()->Stop();
             }
             else
             {
@@ -448,6 +467,8 @@ int main(void)
                 VERBOSE("not finding target...");
                 // Head::GetInstance()->MoveToHome();
                 adjust_gait();
+                Walking::GetInstance()->PERIOD_TIME = default_period_time;
+
                 // usleep(200);
             }
             cv::imshow("Binary Image",img_thresholded);
