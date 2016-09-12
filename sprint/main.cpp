@@ -4,7 +4,7 @@
  *@author: Bryan Wodi <talk2kamp@gmail.com>
  *@date:  Aug 13, 2016
  *      ADAPTED from robotis tutorial {ball_following}
- *@purpose: sprint FIRA2016
+ *@purpose: sprint FIRA2016. Using OPENCV 2.4.13
  */
 
 #include <stdio.h>
@@ -77,6 +77,19 @@ void sighandler(int sig)
     exit(0);
 }
 
+void start_running()
+{
+    if( !Walking::GetInstance()->IsRunning() )
+    {
+        Walking::GetInstance()->Start();
+    }
+    
+}
+
+void stop_running()
+{
+
+}
 static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
 {//based on the Euclidean plane
     float diffX = pt1.x - pt2.x;
@@ -88,11 +101,11 @@ static void adjust_gait()
 {
     VERBOSE("adjust_gait");
     target_not_found_count++;
-    //target search is flawed
-    //if((found_target == false))// && target_not_found_count > 3)
-    //{
+    if((found_target == false)&& target_not_found_count > 3)
+    {
         if( (target_not_found_count % 2) == 0)
         {
+            Head::GetInstance()->MoveToHome();
             Head::GetInstance()->MoveByAngle(-30,30);
             VERBOSE("pan left");
         }
@@ -102,8 +115,7 @@ static void adjust_gait()
             Head::GetInstance()->MoveByAngle(30,30);
             VERBOSE("pan right");
         }
-        target_not_found_count = 0;
-    // Head::GetInstance()->MoveByAngle(0,30);
+    }
     Walking::GetInstance()->A_MOVE_AMPLITUDE = 0.0; //direction
     Walking::GetInstance()->X_MOVE_AMPLITUDE = 0.0; //forward/backward
     Walking::GetInstance()->PERIOD_TIME = 600;//from framework
@@ -151,7 +163,7 @@ static cv::Point3f find_target(cv::Mat& frame)
                 }
 
                 //now the order of points is: top left, bottom left, bottom right, top right.
-                rotated = cv::Mat(transformed_height_width,transformed_height_width,CV_8U); //this will contain our roi
+                rotated = cv::Mat(transformed_height_width,transformed_height_width,CV_8UC1); //this will contain our roi
                 cv::Point2f dst_vertices[4]; 
                 //in the order:
                 //top left, bottom left, bottom right, top right
@@ -191,6 +203,7 @@ static cv::Point3f find_target(cv::Mat& frame)
 
                     if(rotated.data)
                     {
+                        cv::line(rotated, cv::Point(110,110), cv::Point(120,110), cv::Scalar(255,0,0),1,1);
                         cv::imshow("rotated",rotated);
                     }
                     target_centre = cv::Point3f(target_x, target_y,target_area);
@@ -207,10 +220,8 @@ static cv::Point3f find_target(cv::Mat& frame)
     {
         target_centre = cv::Point3f(0.0,0.0,0.0);
     }
-
     return target_centre;
 }
-
 
 static void set_range_params()
 {
@@ -246,11 +257,13 @@ static void set_range_params()
             //first convert cam image to bgr before hsv
             cv::cvtColor(curr_frame,curr_frame,cv::COLOR_RGB2BGR);
             cv::cvtColor(curr_frame,curr_hsv,cv::COLOR_BGR2HSV);
+
+            curr_thresholded = cv::Mat(curr_frame.size(),CV_8UC1);
             
             cv::inRange(curr_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),curr_thresholded);
             // cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(9,9),2,2);
             cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
-            // cv::imwrite("threshold.png",curr_thresholded);
+            cv::imwrite("threshold.png",curr_thresholded);
             cv::Canny(curr_thresholded,curr_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
             // cv::dilate(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
         }
@@ -409,7 +422,7 @@ int main(void)
             cv::cvtColor(mat_frame,mat_frame,cv::COLOR_RGB2BGR);
             cv::cvtColor(mat_frame,img_hsv,cv::COLOR_BGR2HSV);
             
-            img_thresholded = cv::Mat(mat_frame.size(),CV_8U);
+            img_thresholded = cv::Mat(mat_frame.size(),CV_8UC1);
             cv::inRange(img_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),img_thresholded);
             // cv::GaussianBlur(img_thresholded,img_thresholded,cv::Size(9,9),2,2);
 
@@ -433,7 +446,7 @@ int main(void)
                         Head::GetInstance()->MoveByAngleOffset(0,-1);
                         // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;
                         tracker.Process(new_ball_pos);
-                        follower.Process(tracker.ball_position);
+                        // follower.Process(tracker.ball_position);
                         Walking::GetInstance()->PERIOD_TIME = default_period_time;
                         // usleep(250); 
                     }
@@ -446,7 +459,7 @@ int main(void)
                         Head::GetInstance()->MoveByAngle(0,30); //look straight
                         // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;// Walking::GetInstance()->STEP_FB_RATIO = 1.0
                         tracker.Process(new_ball_pos);
-                        follower.Process(tracker.ball_position);
+                        // follower.Process(tracker.ball_position);
                         Walking::GetInstance()->PERIOD_TIME = 300;
                         Walking::GetInstance()->X_MOVE_AMPLITUDE = 10.0;
                         // usleep(250); 
@@ -462,9 +475,9 @@ int main(void)
                 VERBOSE("not finding target...");
                 VERBOSETP("target_not_found_count: ",target_not_found_count);
                 adjust_gait();
+                usleep(200);
                 Walking::GetInstance()->PERIOD_TIME = default_period_time;
                 Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
-                // usleep(200);
             }
             cv::imshow("Binary Image",img_thresholded);
             cv::imshow("Live feed", mat_frame);
