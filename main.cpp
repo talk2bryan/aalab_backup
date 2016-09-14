@@ -81,14 +81,33 @@ void start_running()
 {
     if( !Walking::GetInstance()->IsRunning() )
     {
+        VERBOSE("running...")
+        Walking::GetInstance()->PERIOD_TIME = 300;
+        Walking::GetInstance()->X_MOVE_AMPLITUDE = 10.0;
         Walking::GetInstance()->Start();
     }
     
 }
 
+void increase_pace()
+{
+    Walking::GetInstance()->PERIOD_TIME = 300;
+    Walking::GetInstance()->X_MOVE_AMPLITUDE = 10.0;
+}
+void decrease_pace()
+{
+    Walking::GetInstance()->PERIOD_TIME = default_period_time;
+    Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
+}
 void stop_running()
 {
-
+    if( Walking::GetInstance()->IsRunning() )
+    {   
+        VERBOSE("stopped running")
+        Walking::GetInstance()->PERIOD_TIME = default_period_time;
+        Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
+        Walking::GetInstance()->Stop();
+    }
 }
 static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
 {//based on the Euclidean plane
@@ -99,23 +118,25 @@ static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
 
 static void adjust_gait()
 {
-    VERBOSE("adjust_gait");
     target_not_found_count++;
-    if((found_target == false)&& target_not_found_count > 3)
-    {
-        if( (target_not_found_count % 2) == 0)
-        {
-            Head::GetInstance()->MoveToHome();
-            Head::GetInstance()->MoveByAngle(-30,30);
-            VERBOSE("pan left");
-        }
-        else
-        {
-            Head::GetInstance()->MoveToHome();
-            Head::GetInstance()->MoveByAngle(30,30);
-            VERBOSE("pan right");
-        }
-    }
+    Head::GetInstance()->MoveByAngle(30,30);
+
+    // if((found_target == false) && target_not_found_count > 3)
+    // {
+    //     VERBOSE("adjust gait...");
+    //     // if( (target_not_found_count % 2) == 0)
+    //     // {
+    //     //     Head::GetInstance()->MoveToHome();
+    //     //     Head::GetInstance()->MoveByAngle(-30,30);
+    //     //     VERBOSE("pan left");
+    //     // }
+    //     // else
+    //     // {
+    //     //     Head::GetInstance()->MoveToHome();
+    //     //     Head::GetInstance()->MoveByAngle(30,30);
+    //     //     VERBOSE("pan right");
+    //     // }
+    // }
     Walking::GetInstance()->A_MOVE_AMPLITUDE = 0.0; //direction
     Walking::GetInstance()->X_MOVE_AMPLITUDE = 0.0; //forward/backward
     Walking::GetInstance()->PERIOD_TIME = 600;//from framework
@@ -435,47 +456,71 @@ int main(void)
             if (curr_area != 0)
             {
                 VERBOSETP("Target area: ",curr_area);
-                //found target
                 iLastX = img_target.x;
                 iLastY = img_target.y;
-                if (curr_area <= 10000) //30cm away
-                {
-                    if (curr_area > 7200) //~50cm away
-                    {//closing in on object so tilt head downwards to focus
-                        Point2D new_ball_pos(iLastX,iLastY);
-                        Head::GetInstance()->MoveByAngleOffset(0,-1);
-                        // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;
-                        tracker.Process(new_ball_pos);
-                        // follower.Process(tracker.ball_position);
-                        Walking::GetInstance()->PERIOD_TIME = default_period_time;
-                        // usleep(250); 
-                    }
-                    else
-                    {
-                        //TODO - tweak period time to increase speed -----
-                        // get centre of the target, x marks the spot
-                        Point2D new_ball_pos(iLastX,iLastY);
-                        //walk straight because target is far away
-                        Head::GetInstance()->MoveByAngle(0,30); //look straight
-                        // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;// Walking::GetInstance()->STEP_FB_RATIO = 1.0
-                        tracker.Process(new_ball_pos);
-                        // follower.Process(tracker.ball_position);
-                        Walking::GetInstance()->PERIOD_TIME = 300;
-                        Walking::GetInstance()->X_MOVE_AMPLITUDE = 10.0;
-                        // usleep(250); 
-                    }
-                }
-                else
-                    if( Walking::GetInstance()->IsRunning() )
-                        Walking::GetInstance()->Stop();
+                Point2D new_ball_pos(iLastX,iLastY);
+                tracker.Process(new_ball_pos);
+                start_running();
+                usleep(2400000);
+
+
+                // if (curr_area < 7000)
+                // {
+                    
+                //     tracker.Process(new_ball_pos);
+                //     // follower.Process(tracker.ball_position);
+                //     //start_running();
+                //     // usleep(2400000);
+                // }
+                // else
+                // {
+                //     stop_running();
+                // }
+            
+                // if (curr_area > 7200) //~50cm away
+                // {//closing in on object so tilt head downwards to focus
+                //     Point2D new_ball_pos(iLastX,iLastY);
+                //     Head::GetInstance()->MoveByAngleOffset(0,-1);
+                //     // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;
+                //     tracker.Process(new_ball_pos);
+                //     follower.Process(tracker.ball_position);
+                //     // start_running();
+                //     usleep(240);
+                //     // stop_running();
+                //     // usleep((Robot::Walking::GetInstance()->PERIOD_TIME * 2)*1000);
+                //     // follower.Process(tracker.ball_position);
+                //     Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
+                //     Walking::GetInstance()->PERIOD_TIME = default_period_time;
+                //     // usleep(250); 
+                // }
+                // else
+                // {
+                //     //TODO - tweak period time to increase speed -----
+                //     // get centre of the target, x marks the spot
+                //     Point2D new_ball_pos(iLastX,iLastY);
+                //     //walk straight because target is far away
+                //     // Head::GetInstance()->MoveByAngle(0,30); //look straight
+                //     // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;// Walking::GetInstance()->STEP_FB_RATIO = 1.0
+                //     tracker.Process(new_ball_pos);
+                //     // follower.Process(tracker.ball_position);
+                //     // Walking::GetInstance()->PERIOD_TIME = 300;
+                //     // Walking::GetInstance()->X_MOVE_AMPLITUDE = 10.0;
+                //     follower.Process(tracker.ball_position);
+                //     // start_running();
+                //     usleep(240);
+                //     Walking::GetInstance()->PERIOD_TIME = default_period_time;
+                //     // stop_running();
+                //     // usleep(250); 
+                // }
+            
             }
             else
             {
                 //target not found
                 VERBOSE("not finding target...");
-                VERBOSETP("target_not_found_count: ",target_not_found_count);
-                adjust_gait();
-                usleep(200);
+                stop_running();
+                //adjust_gait();
+                // usleep(200);
                 Walking::GetInstance()->PERIOD_TIME = default_period_time;
                 Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
             }
