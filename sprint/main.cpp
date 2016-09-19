@@ -52,13 +52,14 @@ static int target_not_found_count = 0;
 
 static double default_period_time;
 static double default_x_move_amp;
+static double default_y_move_amp;
 
 static const int canny_threshold = 100;
 static const int canny_ratio = 3;
 static const int canny_kernel_size = 3;
 static const unsigned int num_vertices_square = 4;
 static const int transformed_height_width = 200;
-static const int min_target_area = 200;
+static const int min_target_area = 100;
 static const int max_target_area = 33000; //these values are based on sampling the target area
 
 
@@ -77,13 +78,30 @@ void sighandler(int sig)
     exit(0);
 }
 
-void start_running()
+
+//use step irection from tuner to pan head
+static void pan_left()
 {
+    VERBOSE("pan left...")
+    Head::GetInstance()->MoveByAngle(30,30);
+    Head::GetInstance()->MoveByAngle(0,30);
+}
+
+static void pan_right()
+{
+    VERBOSE("pan right...")
+    Head::GetInstance()->MoveByAngle(30,30);
+    Head::GetInstance()->MoveByAngle(60,30);
+}
+static void start_running()
+{//update (x, y, a) move amplitude
     if( !Walking::GetInstance()->IsRunning() )
     {
         VERBOSE("running...")
         Walking::GetInstance()->PERIOD_TIME = 300;
         Walking::GetInstance()->X_MOVE_AMPLITUDE = 10.0;
+        Walking::GetInstance()->Y_MOVE_AMPLITUDE = 1;
+        Walking::GetInstance()->Y_OFFSET = 0;
         Walking::GetInstance()->Start();
     }
     
@@ -106,6 +124,7 @@ void stop_running()
         VERBOSE("stopped running")
         Walking::GetInstance()->PERIOD_TIME = default_period_time;
         Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
+        Walking::GetInstance()->Y_MOVE_AMPLITUDE = default_y_move_amp;
         Walking::GetInstance()->Stop();
     }
 }
@@ -419,8 +438,9 @@ int main(void)
 
     default_period_time = Walking::GetInstance()->PERIOD_TIME;
     default_x_move_amp =  Walking::GetInstance()->X_MOVE_AMPLITUDE;
+    default_y_move_amp =  Walking::GetInstance()->Y_MOVE_AMPLITUDE;
 
-    Head::GetInstance()->MoveByAngle(0,30); //keep head focused on target
+    Head::GetInstance()->MoveByAngle(0,40); //keep head focused on target
 
     
     //values for reporting the X and Y and area vals for found target
@@ -461,7 +481,12 @@ int main(void)
                 Point2D new_ball_pos(iLastX,iLastY);
                 tracker.Process(new_ball_pos);
                 start_running();
-                usleep(2400000);
+                usleep(240000);
+
+                if (curr_area >= 11000)
+                {
+                    stop_running();
+                }
 
 
                 // if (curr_area < 7000)
@@ -526,7 +551,11 @@ int main(void)
             }
             cv::imshow("Binary Image",img_thresholded);
             cv::imshow("Live feed", mat_frame);
-            if(cv::waitKey(30) == 27) break;
+            if(cv::waitKey(30) == 27) 
+            {
+                stop_running();
+                break;
+            }
         } // if mat_frame.data
     } //outermost while
     return 0;
