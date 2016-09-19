@@ -53,6 +53,7 @@ static int target_not_found_count = 0;
 static double default_period_time;
 static double default_x_move_amp;
 static double default_y_move_amp;
+static double default_pelvis_offset;
 
 static const int canny_threshold = 100;
 static const int canny_ratio = 3;
@@ -98,8 +99,8 @@ static void start_running()
     if( !Walking::GetInstance()->IsRunning() )
     {
         VERBOSE("running...")
-        Walking::GetInstance()->PERIOD_TIME = 300;
-        Walking::GetInstance()->X_MOVE_AMPLITUDE = 10.0;
+        // Walking::GetInstance()->PERIOD_TIME = 300;
+        Walking::GetInstance()->X_MOVE_AMPLITUDE += 10.0;
         Walking::GetInstance()->Y_MOVE_AMPLITUDE = 1;
         Walking::GetInstance()->Y_OFFSET = 0;
         Walking::GetInstance()->Start();
@@ -161,6 +162,8 @@ static void adjust_gait()
     Walking::GetInstance()->PERIOD_TIME = 600;//from framework
     Walking::GetInstance()->Start();
 }
+
+static void restore_params(){}
 
 static cv::Point3f find_target(cv::Mat& frame)
 {
@@ -439,8 +442,10 @@ int main(void)
     default_period_time = Walking::GetInstance()->PERIOD_TIME;
     default_x_move_amp =  Walking::GetInstance()->X_MOVE_AMPLITUDE;
     default_y_move_amp =  Walking::GetInstance()->Y_MOVE_AMPLITUDE;
+    default_pelvis_offset = Walking::GetInstance()->PELVIS_OFFSET;
 
     Head::GetInstance()->MoveByAngle(0,40); //keep head focused on target
+    Walking::GetInstance()->PELVIS_OFFSET = 2.0;
 
     
     //values for reporting the X and Y and area vals for found target
