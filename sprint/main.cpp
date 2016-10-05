@@ -51,6 +51,7 @@ static bool found_target = false;
 static int target_not_found_count = 0;
 
 static double default_period_time;
+static double default_a_move_amp;
 static double default_x_move_amp;
 static double default_y_move_amp;
 static double default_pelvis_offset;
@@ -99,10 +100,10 @@ static void start_running()
     if( !Walking::GetInstance()->IsRunning() )
     {
         VERBOSE("running...")
-        // Walking::GetInstance()->PERIOD_TIME = 300;
+        Walking::GetInstance()->PERIOD_TIME = 600;
         Walking::GetInstance()->X_MOVE_AMPLITUDE += 10.0;
-        Walking::GetInstance()->Y_MOVE_AMPLITUDE = 1;
-        Walking::GetInstance()->Y_OFFSET = 0;
+        // Walking::GetInstance()->Y_MOVE_AMPLITUDE = 1;
+        // Walking::GetInstance()->Y_OFFSET = 0;
         Walking::GetInstance()->Start();
     }
     
@@ -138,8 +139,6 @@ static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
 
 static void adjust_gait()
 {
-    target_not_found_count++;
-    Head::GetInstance()->MoveByAngle(30,30);
 
     // if((found_target == false) && target_not_found_count > 3)
     // {
@@ -157,13 +156,44 @@ static void adjust_gait()
     //     //     VERBOSE("pan right");
     //     // }
     // }
+    VERBOSE("adjusting gait...");
     Walking::GetInstance()->A_MOVE_AMPLITUDE = 0.0; //direction
     Walking::GetInstance()->X_MOVE_AMPLITUDE = 0.0; //forward/backward
-    Walking::GetInstance()->PERIOD_TIME = 600;//from framework
+    Walking::GetInstance()->PERIOD_TIME = 600;
     Walking::GetInstance()->Start();
+    usleep(200000);
 }
 
-static void restore_params(){}
+static void scan_area()
+{
+    // if(found_target == false)
+    // {
+        VERBOSETP("target_not_found_count: ",target_not_found_count);
+        VERBOSETP("target_not_found mod 2: ", (target_not_found_count % 2) );
+
+        Walking::GetInstance()->A_MOVE_AMPLITUDE = 0.0; //look straght
+        if( (target_not_found_count % 2) == 0)
+        {
+            VERBOSE("panning left...");
+            // Walking::GetInstance()->A_MOVE_AMPLITUDE += 50.0;
+        }
+        else
+        {
+            VERBOSE("panning right...");
+            // Walking::GetInstance()->A_MOVE_AMPLITUDE -= 50.0;
+        }
+    // }
+}
+
+static void restore_params()
+{
+    Walking::GetInstance()->A_MOVE_AMPLITUDE = default_a_move_amp;
+    Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
+    Walking::GetInstance()->Y_MOVE_AMPLITUDE = default_y_move_amp;
+    Walking::GetInstance()->PERIOD_TIME = default_period_time;
+    Walking::GetInstance()->PELVIS_OFFSET = default_pelvis_offset;
+    VERBOSE("restored params")
+}
 
 static cv::Point3f find_target(cv::Mat& frame)
 {
@@ -306,7 +336,6 @@ static void set_range_params()
             cv::inRange(curr_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),curr_thresholded);
             // cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(9,9),2,2);
             cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
-            cv::imwrite("threshold.png",curr_thresholded);
             cv::Canny(curr_thresholded,curr_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
             // cv::dilate(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
         }
@@ -440,6 +469,7 @@ int main(void)
     Walking::GetInstance()->STEP_FB_RATIO = 1.0;
 
     default_period_time = Walking::GetInstance()->PERIOD_TIME;
+    default_a_move_amp =  Walking::GetInstance()->A_MOVE_AMPLITUDE;
     default_x_move_amp =  Walking::GetInstance()->X_MOVE_AMPLITUDE;
     default_y_move_amp =  Walking::GetInstance()->Y_MOVE_AMPLITUDE;
     default_pelvis_offset = Walking::GetInstance()->PELVIS_OFFSET;
@@ -485,8 +515,10 @@ int main(void)
                 iLastY = img_target.y;
                 Point2D new_ball_pos(iLastX,iLastY);
                 tracker.Process(new_ball_pos);
-                start_running();
-                usleep(240000);
+                follower.Process(tracker.ball_position);
+                // start_running();
+                // usleep(240000);
+                // usleep((Walking::GetInstance()->PERIOD_TIME * 5)*1000);
 
                 if (curr_area >= 11000)
                 {
@@ -498,7 +530,7 @@ int main(void)
                 // {
                     
                 //     tracker.Process(new_ball_pos);
-                //     // follower.Process(tracker.ball_position);
+                    // follower.Process(tracker.ball_position);
                 //     //start_running();
                 //     // usleep(2400000);
                 // }
@@ -548,11 +580,13 @@ int main(void)
             {
                 //target not found
                 VERBOSE("not finding target...");
+                // target_not_found_count++;
                 stop_running();
+                // scan_area();
                 //adjust_gait();
                 // usleep(200);
-                Walking::GetInstance()->PERIOD_TIME = default_period_time;
-                Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
+                // Walking::GetInstance()->PERIOD_TIME = default_period_time;
+                // Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
             }
             cv::imshow("Binary Image",img_thresholded);
             cv::imshow("Live feed", mat_frame);
