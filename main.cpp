@@ -153,7 +153,6 @@ void stop_running()
         Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
         Walking::GetInstance()->Y_MOVE_AMPLITUDE = default_y_move_amp;
         Walking::GetInstance()->Stop();
-        restore_params();
     }
 }
 static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
@@ -194,9 +193,14 @@ static void scan_area()
 {
     if(found_target == false)
     {
-
+        target_not_found_count++;
         Walking::GetInstance()->A_MOVE_AMPLITUDE = 0.0; //look straght
         Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
+
+        if (target_not_found_count > max_target_not_found_count)
+        {
+            Head::GetInstance()->InitTracking();
+        }
 
         // if( (target_not_found_count % 2) == 0)
         // {
@@ -546,6 +550,7 @@ int main(void)
                 if (curr_area >= 15000)
                 {
                     stop_running();
+                    break;
                 }
 
 
@@ -603,9 +608,8 @@ int main(void)
             {
                 //target not found
                 VERBOSE("not finding target...");
-                // target_not_found_count++;
                 stop_running();
-                // scan_area();
+                scan_area();
                 //adjust_gait();
                 // usleep(200);
                 // Walking::GetInstance()->PERIOD_TIME = default_period_time;
@@ -616,6 +620,7 @@ int main(void)
             if(cv::waitKey(30) == 27) 
             {
                 stop_running();
+                restore_params();
                 break;
             }
         } // if mat_frame.data
