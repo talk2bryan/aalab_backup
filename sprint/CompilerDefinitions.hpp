@@ -23,6 +23,11 @@
 #define VERBOSENEL(x)
 #endif
 
+#ifndef ERROR
+#define ERRORHEADER "[ERROR]" << __FILENAME__ <<": " << __LINE__ << ") "
+#define ERROR(x) std::cout << ERRORHEADER << x << std::endl;
+#endif
+
 #define _USE_MATH_DEFINES
 
 #endif
