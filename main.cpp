@@ -109,10 +109,20 @@ static void start_running()
     
 }
 
+static void restore_params()
+{
+    Walking::GetInstance()->A_MOVE_AMPLITUDE = default_a_move_amp;
+    Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
+    Walking::GetInstance()->Y_MOVE_AMPLITUDE = default_y_move_amp;
+    Walking::GetInstance()->PERIOD_TIME = default_period_time;
+    Walking::GetInstance()->PELVIS_OFFSET = default_pelvis_offset;
+    VERBOSE("restored params")
+}
+
 void increase_pace()
 {
-    Walking::GetInstance()->PERIOD_TIME = 300;
-    Walking::GetInstance()->X_MOVE_AMPLITUDE = 10.0;
+    // Walking::GetInstance()->PERIOD_TIME = 300;
+    Walking::GetInstance()->X_MOVE_AMPLITUDE += 10.0;
 }
 void decrease_pace()
 {
@@ -128,6 +138,7 @@ void stop_running()
         Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
         Walking::GetInstance()->Y_MOVE_AMPLITUDE = default_y_move_amp;
         Walking::GetInstance()->Stop();
+        restore_params();
     }
 }
 static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
@@ -185,15 +196,6 @@ static void scan_area()
     // }
 }
 
-static void restore_params()
-{
-    Walking::GetInstance()->A_MOVE_AMPLITUDE = default_a_move_amp;
-    Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
-    Walking::GetInstance()->Y_MOVE_AMPLITUDE = default_y_move_amp;
-    Walking::GetInstance()->PERIOD_TIME = default_period_time;
-    Walking::GetInstance()->PELVIS_OFFSET = default_pelvis_offset;
-    VERBOSE("restored params")
-}
 
 static cv::Point3f find_target(cv::Mat& frame)
 {
@@ -347,6 +349,7 @@ static void set_range_params()
         if(cv::waitKey(30) == 10) 
         {
             cv::destroyAllWindows();
+            VERBOSETP("X_MOVE_AMPLITUDE: ",default_x_move_amp);
             break;
         }
     }
@@ -451,6 +454,8 @@ int main(void)
     cm730.SyncWrite(MX28::P_GOAL_POSITION_L, 5, JointData::NUMBER_OF_JOINTS - 1, param);
 
     //values for inRange thresholding of red colored objects
+    Walking::GetInstance()->X_MOVE_AMPLITUDE = 10.0;
+    default_x_move_amp =  Walking::GetInstance()->X_MOVE_AMPLITUDE;
     set_range_params();
     VERBOSETP("iLowH: ",iLowH);
     VERBOSETP("iHighH: ",iHighH);
@@ -460,6 +465,7 @@ int main(void)
     VERBOSETP("iHighV: ",iHighV);
     VERBOSE("All set!\n");
 
+    VERBOSETP("X_MOVE_AMPLITUDE again is: ",Walking::GetInstance()->X_MOVE_AMPLITUDE);
     printf("Press the ENTER key to begin!\n");
     getchar();
    
@@ -470,12 +476,11 @@ int main(void)
 
     default_period_time = Walking::GetInstance()->PERIOD_TIME;
     default_a_move_amp =  Walking::GetInstance()->A_MOVE_AMPLITUDE;
-    default_x_move_amp =  Walking::GetInstance()->X_MOVE_AMPLITUDE;
+    
     default_y_move_amp =  Walking::GetInstance()->Y_MOVE_AMPLITUDE;
     default_pelvis_offset = Walking::GetInstance()->PELVIS_OFFSET;
 
     Head::GetInstance()->MoveByAngle(0,40); //keep head focused on target
-    Walking::GetInstance()->PELVIS_OFFSET = 2.0;
 
     
     //values for reporting the X and Y and area vals for found target
@@ -485,6 +490,7 @@ int main(void)
 
     cv::namedWindow("Binary Image");
     cv::Mat img_hsv, img_thresholded;// img_canny, rotated;
+    
     
 
     while( true )
@@ -514,13 +520,14 @@ int main(void)
                 iLastX = img_target.x;
                 iLastY = img_target.y;
                 Point2D new_ball_pos(iLastX,iLastY);
+                // increase_pace();
                 tracker.Process(new_ball_pos);
                 follower.Process(tracker.ball_position);
                 // start_running();
                 // usleep(240000);
                 // usleep((Walking::GetInstance()->PERIOD_TIME * 5)*1000);
 
-                if (curr_area >= 11000)
+                if (curr_area >= 15000)
                 {
                     stop_running();
                 }
@@ -539,7 +546,7 @@ int main(void)
                 //     stop_running();
                 // }
             
-                // if (curr_area > 7200) //~50cm away
+                // if (curr_area > 7200) //~50cm away, 30cm away is about 10,500 in pixel area
                 // {//closing in on object so tilt head downwards to focus
                 //     Point2D new_ball_pos(iLastX,iLastY);
                 //     Head::GetInstance()->MoveByAngleOffset(0,-1);
