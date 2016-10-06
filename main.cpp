@@ -48,7 +48,12 @@ static int iLowV = 0;
 static int iHighV = 255;
 
 static bool found_target = false;
+
 static int target_not_found_count = 0;
+static int m_fb_step;
+
+static double m_head_tilt;
+static double m_head_pan;
 
 static double default_period_time;
 static double default_a_move_amp;
@@ -59,10 +64,18 @@ static double default_pelvis_offset;
 static const int canny_threshold = 100;
 static const int canny_ratio = 3;
 static const int canny_kernel_size = 3;
-static const unsigned int num_vertices_square = 4;
 static const int transformed_height_width = 200;
 static const int min_target_area = 100;
 static const int max_target_area = 33000; //these values are based on sampling the target area
+static const int max_target_not_found_count = 100;
+static const int max_target_found_count = 2;
+static const unsigned int num_vertices_square = 4;
+static const double max_fb_step = 30.0;
+static const double max_tilt_top = 25;
+static const double max_tilt_bottom= -12;
+static const double max_pan = 65;
+
+
 
 
 void change_current_dir()
@@ -124,11 +137,13 @@ void increase_pace()
     // Walking::GetInstance()->PERIOD_TIME = 300;
     Walking::GetInstance()->X_MOVE_AMPLITUDE += 10.0;
 }
+
 void decrease_pace()
 {
     Walking::GetInstance()->PERIOD_TIME = default_period_time;
     Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
 }
+
 void stop_running()
 {
     if( Walking::GetInstance()->IsRunning() )
@@ -177,23 +192,28 @@ static void adjust_gait()
 
 static void scan_area()
 {
-    // if(found_target == false)
-    // {
-        VERBOSETP("target_not_found_count: ",target_not_found_count);
-        VERBOSETP("target_not_found mod 2: ", (target_not_found_count % 2) );
+    if(found_target == false)
+    {
 
         Walking::GetInstance()->A_MOVE_AMPLITUDE = 0.0; //look straght
-        if( (target_not_found_count % 2) == 0)
-        {
-            VERBOSE("panning left...");
-            // Walking::GetInstance()->A_MOVE_AMPLITUDE += 50.0;
-        }
-        else
-        {
-            VERBOSE("panning right...");
-            // Walking::GetInstance()->A_MOVE_AMPLITUDE -= 50.0;
-        }
-    // }
+        Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
+
+        // if( (target_not_found_count % 2) == 0)
+        // {
+        //     VERBOSE("panning left...");
+        //     // Walking::GetInstance()->A_MOVE_AMPLITUDE += 50.0;
+        // }
+        // else
+        // {
+        //     VERBOSE("panning right...");
+        //     // Walking::GetInstance()->A_MOVE_AMPLITUDE -= 50.0;
+        // }
+    }
+    else
+    {
+        target_not_found_count = 0;
+
+    }
 }
 
 
@@ -323,7 +343,7 @@ static void set_range_params()
     {
         LinuxCamera::GetInstance()->CaptureFrame();
         memcpy(rgb_output->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageSize);
-    
+
         cv::Mat curr_frame=cv::Mat(rgb_output->m_Height,rgb_output->m_Width,CV_8UC3,rgb_output->m_ImageData);
         cv::Mat curr_hsv,curr_canny, curr_thresholded;
         
@@ -349,7 +369,6 @@ static void set_range_params()
         if(cv::waitKey(30) == 10) 
         {
             cv::destroyAllWindows();
-            VERBOSETP("X_MOVE_AMPLITUDE: ",default_x_move_amp);
             break;
         }
     }
@@ -453,9 +472,7 @@ int main(void)
     }
     cm730.SyncWrite(MX28::P_GOAL_POSITION_L, 5, JointData::NUMBER_OF_JOINTS - 1, param);
 
-    //values for inRange thresholding of red colored objects
-    Walking::GetInstance()->X_MOVE_AMPLITUDE = 10.0;
-    default_x_move_amp =  Walking::GetInstance()->X_MOVE_AMPLITUDE;
+    //values for inRange thresholding of red colored objects    
     set_range_params();
     VERBOSETP("iLowH: ",iLowH);
     VERBOSETP("iHighH: ",iHighH);
@@ -465,7 +482,6 @@ int main(void)
     VERBOSETP("iHighV: ",iHighV);
     VERBOSE("All set!\n");
 
-    VERBOSETP("X_MOVE_AMPLITUDE again is: ",Walking::GetInstance()->X_MOVE_AMPLITUDE);
     printf("Press the ENTER key to begin!\n");
     getchar();
    
@@ -476,7 +492,7 @@ int main(void)
 
     default_period_time = Walking::GetInstance()->PERIOD_TIME;
     default_a_move_amp =  Walking::GetInstance()->A_MOVE_AMPLITUDE;
-    
+    default_x_move_amp =  Walking::GetInstance()->X_MOVE_AMPLITUDE;
     default_y_move_amp =  Walking::GetInstance()->Y_MOVE_AMPLITUDE;
     default_pelvis_offset = Walking::GetInstance()->PELVIS_OFFSET;
 
