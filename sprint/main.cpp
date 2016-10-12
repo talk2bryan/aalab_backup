@@ -48,6 +48,7 @@ static int iLowV = 0;
 static int iHighV = 255;
 
 static bool found_target = false;
+static bool going_backwards = false;
 
 static int target_not_found_count = 0;
 static int m_fb_step;
@@ -114,7 +115,7 @@ static void start_running()
     {
         VERBOSE("running...")
         Walking::GetInstance()->PERIOD_TIME = 600;
-        Walking::GetInstance()->X_MOVE_AMPLITUDE += 10.0;
+        // Walking::GetInstance()->X_MOVE_AMPLITUDE += 10.0;
         // Walking::GetInstance()->Y_MOVE_AMPLITUDE = 1;
         // Walking::GetInstance()->Y_OFFSET = 0;
         Walking::GetInstance()->Start();
@@ -189,17 +190,38 @@ static void adjust_gait()
     usleep(200000);
 }
 
+static void move_backward()
+{
+    if (! going_backwards)
+    {
+        stop_running();
+        Walking::GetInstance()->X_MOVE_AMPLITUDE=-10;
+        going_backwards = true;
+        VERBOSETP("new X_MOVE_AMPLITUDE: ",Walking::GetInstance()->X_MOVE_AMPLITUDE);
+        start_running();
+        usleep(8*1000);        
+    }
+     
+}
+
 static void scan_area()
 {
-    if(found_target == false)
+    if(! found_target)
     {
-        target_not_found_count++;
+        
         Walking::GetInstance()->A_MOVE_AMPLITUDE = 0.0; //look straght
         Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
 
-        if (target_not_found_count > max_target_not_found_count)
+        if (target_not_found_count < max_target_not_found_count)
+        {
+            Head::GetInstance()->MoveTracking();
+            VERBOSE("Head::GetInstance()->MoveTracking()")
+            target_not_found_count++;
+        }
+        else
         {
             Head::GetInstance()->InitTracking();
+            // VERBOSE("Head::GetInstance()->InitTracking()")
         }
 
         // if( (target_not_found_count % 2) == 0)
@@ -216,7 +238,6 @@ static void scan_area()
     else
     {
         target_not_found_count = 0;
-
     }
 }
 
@@ -330,7 +351,7 @@ static void set_range_params()
     Image* rgb_output = new Image(Camera::WIDTH, Camera::HEIGHT, Image::RGB_PIXEL_SIZE);
     //values for inRange thresholding of red colored objects
     cv::namedWindow("Colour Control", CV_WINDOW_AUTOSIZE);
-    cv::namedWindow("Canny Image", CV_WINDOW_AUTOSIZE);
+    // cv::namedWindow("Canny Image", CV_WINDOW_AUTOSIZE);
     cv::namedWindow("Threshold Image", CV_WINDOW_AUTOSIZE);
 
     //Create trackbars in "Colour Control" window
@@ -366,7 +387,7 @@ static void set_range_params()
             // cv::dilate(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
         }
         
-        cv::imshow("Canny Image",curr_canny);
+        // cv::imshow("Canny Image",curr_canny);
         cv::imshow("Threshold Image",curr_thresholded);
         cv::imshow("Colour Control",curr_frame);
         
@@ -501,6 +522,8 @@ int main(void)
     default_pelvis_offset = Walking::GetInstance()->PELVIS_OFFSET;
 
     Head::GetInstance()->MoveByAngle(0,40); //keep head focused on target
+    Walking::GetInstance()->X_MOVE_AMPLITUDE=10;
+
 
     
     //values for reporting the X and Y and area vals for found target
@@ -547,10 +570,10 @@ int main(void)
                 // usleep(240000);
                 // usleep((Walking::GetInstance()->PERIOD_TIME * 5)*1000);
 
-                if (curr_area >= 15000)
+                if (curr_area >= 13000)
                 {
                     stop_running();
-                    break;
+                    move_backward();
                 }
 
 
