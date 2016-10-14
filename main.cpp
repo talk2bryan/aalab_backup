@@ -2,9 +2,9 @@
  * main.cpp
  *
  *@author: Bryan Wodi <talk2kamp@gmail.com>
- *@date:  Aug 13, 2016
+ *@date:  Oct 13, 2016
  *      ADAPTED from robotis tutorial {ball_following}
- *@purpose: sprint FIRA2016. Using OPENCV 2.4.13
+ *@purpose: sprint_two_colors FIRA2016. Using OPENCV 2.4.13
  */
 
 #include <stdio.h>

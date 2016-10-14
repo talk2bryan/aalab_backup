@@ -1,12 +1,12 @@
 ###############################################################
-# Purpose: Makefile for "sprint"
+# Purpose: Makefile for "sprint_two_colors"
 # Author.: Bryan Wodi
 # Version: 0.1
 # License: GPL
 # Date:    Aug 14, 2016
 ###############################################################
 
-TARGET = sprint
+TARGET = sprint_two_colors
 
 INCLUDE_DIRS = -I../../include -I../../../Framework/include -I/usr/local/include/opencv -I/usr/local/include
 # remember to take out debug and g options when finished testing
@@ -40,4 +40,4 @@ $(TARGET): darwin.a $(OBJECTS)
 # useful to make a backup "make tgz"
 tgz: clean
 	mkdir -p backups
-	tar czvf ./backups/DARwIn_sprint_`date +"%Y_%m_%d_%H.%M.%S"`.tgz --exclude backups *
+	tar czvf ./backups/DARwIn_sprint_two_colors_`date +"%Y_%m_%d_%H.%M.%S"`.tgz --exclude backups *
