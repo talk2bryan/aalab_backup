@@ -6,7 +6,7 @@
 # Date:    Aug 14, 2016
 ###############################################################
 
-TARGET = sprint_two_colors
+TARGET = sprint
 
 INCLUDE_DIRS = -I../../include -I../../../Framework/include -I/usr/local/include/opencv -I/usr/local/include
 # remember to take out debug and g options when finished testing

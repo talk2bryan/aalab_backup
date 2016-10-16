@@ -38,14 +38,23 @@
 
 #define U2D_DEV_NAME        "/dev/ttyUSB0"
 
-static int iLowH = 0;
-static int iHighH = 179;
+static int iLowH1 = 0;
+static int iHighH1 = 179;
 
-static int iLowS = 0; 
-static int iHighS = 255;
+static int iLowH2 = 0;
+static int iHighH2 = 179;
 
-static int iLowV = 0;
-static int iHighV = 255;
+static int iLowS1 = 0; 
+static int iHighS1 = 255;
+
+static int iLowS2 = 0; 
+static int iHighS2 = 255;
+
+static int iLowV1 = 0;
+static int iHighV1 = 255;
+
+static int iLowV2 = 0;
+static int iHighV2 = 255;
 
 static bool found_target = false;
 static bool going_backwards = false;
@@ -241,6 +250,86 @@ static void scan_area()
     }
 }
 
+static float get_relative_distance_between_frame_coordinates(const cv::Mat& frame_a, const cv::Mat& frame_b)
+{
+    std::vector<cv::Point> first_frame_points, second_frame_points;
+    static double sum_x, sum_y; //finding the x and y based on averaged vals
+    float result = 0.0;
+
+    first_frame_points = get_points_in_clockwise_order(frame_a);
+    second_frame_points = get_points_in_clockwise_order(frame_b);
+
+    if (first_frame_points[0].x != -1 || first_frame_points[0].y != -1
+        && second_frame_points[0].x != =1 || second_frame_points[0].y != -1)
+    {
+        sum_y = 0.0;
+        sum_x = 0.0;
+        
+        for (int i = 0; i < num_vertices_square; ++i)
+        {
+            sum_x += first_frame_points.at(i).x;
+            sum_y += first_frame_points.at(i).y;
+        }
+        cv::Point a( (sum_x/num_vertices_square), (sum_y/num_vertices_square) );
+
+        sum_y = 0.0;
+        sum_x = 0.0;
+        
+        for (int i = 0; i < num_vertices_square; ++i)
+        {
+            sum_x += second_frame_points.at(i).x;
+            sum_y += second_frame_points.at(i).y;
+        }
+        cv::Point b( (sum_x/num_vertices_square), (sum_y/num_vertices_square) );
+
+        result = get_2D_distance(a,b);
+    }
+    return result;
+}
+
+static std::vector<cv::Point> get_points_in_clockwise_order(const cv::Mat& frame)
+{
+    cv::Mat img_canny;
+    static std::vector<std::vector<cv::Point> > contours; 
+    static std::vector<cv::Point> approx_poly_points;
+    static std::vector<cv::Point> ordered_points;
+
+    //canny, then check if it's a rectangle and check if a circle's in it
+    cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
+    cv::findContours( img_canny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
+
+    ordered_points[0] = cv::Point(-1,-1);
+
+    if (contours.size() > 0)
+    {
+        for (size_t i = 0; i < contours.size(); ++i)
+        {
+            // approximate contour with accuracy proportional
+            // to the contour perimeter
+            cv::approxPolyDP( cv::Mat(contours[i]), approx_poly_points, cv::arcLength(cv::Mat(contours[i]), true)*0.05 , true);
+            if ( (approx_poly_points.size() == num_vertices_square) 
+                && (fabs(cv::contourArea(cv::Mat(approx_poly_points))) > min_target_area)
+                && (cv::isContourConvex(approx_poly_points)) 
+                )
+            {   //points are either 
+                /*
+                a   d           OR     b   a
+                b   c //normal         c   d //abnormal
+                */
+                //if the slope between a and c is -ve, then we have the abnormal case
+                ordered_points = approx_poly_points;
+                if(approx_poly_points[0].x > approx_poly_points[2].x) //positive slope
+                {//shift all
+                    ordered_points[0] = approx_poly_points[1];
+                    ordered_points[1] = approx_poly_points[2];
+                    ordered_points[2] = approx_poly_points[3];
+                    ordered_points[3] = approx_poly_points[0];
+                }
+            }
+        }
+    }
+    return ordered_points;
+}
 
 static cv::Point3f find_target(cv::Mat& frame)
 {
@@ -343,7 +432,7 @@ static cv::Point3f find_target(cv::Mat& frame)
     return target_centre;
 }
 
-static void set_range_params()
+static void set_range_params(int low_h, int &low_s, int &low_v, int &high_h, int &high_s, int &high_v)
 {
     std::cout <<"Setting the range for thresholding" <<std::endl;
     std::cout <<"Press the ENTER key when finished!\n"<<std::endl;
@@ -355,14 +444,14 @@ static void set_range_params()
     cv::namedWindow("Threshold Image", CV_WINDOW_AUTOSIZE);
 
     //Create trackbars in "Colour Control" window
-    cvCreateTrackbar("LowH", "Colour Control", &iLowH, 179);
-    cvCreateTrackbar("HighH", "Colour Control", &iHighH, 179);
+    cvCreateTrackbar("LowH", "Colour Control", low_h, 179);
+    cvCreateTrackbar("HighH", "Colour Control", high_h, 179);
 
-    cvCreateTrackbar("LowS", "Colour Control", &iLowS, 255);
-    cvCreateTrackbar("HighS", "Colour Control", &iHighS, 255);
+    cvCreateTrackbar("LowS", "Colour Control", low_s, 255);
+    cvCreateTrackbar("HighS", "Colour Control", high_s, 255);
 
-    cvCreateTrackbar("LowV", "Colour Control", &iLowV, 255); //Value (0 - 255)
-    cvCreateTrackbar("HighV", "Colour Control", &iHighV, 255);
+    cvCreateTrackbar("LowV", "Colour Control", low_v, 255); //Value (0 - 255)
+    cvCreateTrackbar("HighV", "Colour Control", high_v, 255);
     
     while( true )
     {
@@ -380,7 +469,7 @@ static void set_range_params()
 
             curr_thresholded = cv::Mat(curr_frame.size(),CV_8UC1);
             
-            cv::inRange(curr_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),curr_thresholded);
+            cv::inRange(curr_hsv,cv::Scalar(low_h,low_s,low_v),cv::Scalar(high_h,high_s,high_v),curr_thresholded);
             // cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(9,9),2,2);
             cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
             cv::Canny(curr_thresholded,curr_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
@@ -399,6 +488,63 @@ static void set_range_params()
     }
     
 }
+
+// static void set_range_params()
+// {
+//     std::cout <<"Setting the range for thresholding" <<std::endl;
+//     std::cout <<"Press the ENTER key when finished!\n"<<std::endl;
+
+//     Image* rgb_output = new Image(Camera::WIDTH, Camera::HEIGHT, Image::RGB_PIXEL_SIZE);
+//     //values for inRange thresholding of red colored objects
+//     cv::namedWindow("Colour Control", CV_WINDOW_AUTOSIZE);
+//     // cv::namedWindow("Canny Image", CV_WINDOW_AUTOSIZE);
+//     cv::namedWindow("Threshold Image", CV_WINDOW_AUTOSIZE);
+
+//     //Create trackbars in "Colour Control" window
+//     cvCreateTrackbar("LowH", "Colour Control", &iLowH, 179);
+//     cvCreateTrackbar("HighH", "Colour Control", &iHighH, 179);
+
+//     cvCreateTrackbar("LowS", "Colour Control", &iLowS, 255);
+//     cvCreateTrackbar("HighS", "Colour Control", &iHighS, 255);
+
+//     cvCreateTrackbar("LowV", "Colour Control", &iLowV, 255); //Value (0 - 255)
+//     cvCreateTrackbar("HighV", "Colour Control", &iHighV, 255);
+    
+//     while( true )
+//     {
+//         LinuxCamera::GetInstance()->CaptureFrame();
+//         memcpy(rgb_output->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageSize);
+
+//         cv::Mat curr_frame=cv::Mat(rgb_output->m_Height,rgb_output->m_Width,CV_8UC3,rgb_output->m_ImageData);
+//         cv::Mat curr_hsv,curr_canny, curr_thresholded;
+        
+//         if( curr_frame.data )
+//         {        
+//             //first convert cam image to bgr before hsv
+//             cv::cvtColor(curr_frame,curr_frame,cv::COLOR_RGB2BGR);
+//             cv::cvtColor(curr_frame,curr_hsv,cv::COLOR_BGR2HSV);
+
+//             curr_thresholded = cv::Mat(curr_frame.size(),CV_8UC1);
+            
+//             cv::inRange(curr_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),curr_thresholded);
+//             // cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(9,9),2,2);
+//             cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+//             cv::Canny(curr_thresholded,curr_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
+//             // cv::dilate(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+//         }
+        
+//         // cv::imshow("Canny Image",curr_canny);
+//         cv::imshow("Threshold Image",curr_thresholded);
+//         cv::imshow("Colour Control",curr_frame);
+        
+//         if(cv::waitKey(30) == 10) 
+//         {
+//             cv::destroyAllWindows();
+//             break;
+//         }
+//     }
+    
+// }
 
 /*find  cosine of angle between two vectors from pt0->pt1 and from pt0->pt2 */
 // static double find_cosine( const cv::Point pt1, const cv::Point pt2, const cv::Point pt0 )
@@ -498,13 +644,22 @@ int main(void)
     cm730.SyncWrite(MX28::P_GOAL_POSITION_L, 5, JointData::NUMBER_OF_JOINTS - 1, param);
 
     //values for inRange thresholding of red colored objects    
-    set_range_params();
-    VERBOSETP("iLowH: ",iLowH);
-    VERBOSETP("iHighH: ",iHighH);
-    VERBOSETP("iLowS: ",iLowS);
-    VERBOSETP("iHighS: ",iHighS);
-    VERBOSETP("iLowV: ",iLowV);
-    VERBOSETP("iHighV: ",iHighV);
+    set_range_params(iLowH1, iLowS1, iLowV1, iHighH1, iHighS1, iHighV1);
+    VERBOSETP("iLowH1: ",iLowH1);
+    VERBOSETP("iHighH: ",iHighH1);
+    VERBOSETP("iLowS: ",iLowS1);
+    VERBOSETP("iHighS: ",iHighS1);
+    VERBOSETP("iLowV: ",iLowV1);
+    VERBOSETP("iHighV: ",iHighV1);
+
+    set_range_params(iLowH2, iLowS2, iLowV2, iHighH2, iHighS2, iHighV2);
+    VERBOSETP("iLowH1: ",iLowH2);
+    VERBOSETP("iHighH: ",iHighH2);
+    VERBOSETP("iLowS: ",iLowS2);
+    VERBOSETP("iHighS: ",iHighS2);
+    VERBOSETP("iLowV: ",iLowV2);
+    VERBOSETP("iHighV: ",iHighV2);
+    
     VERBOSE("All set!\n");
 
     printf("Press the ENTER key to begin!\n");
@@ -532,7 +687,7 @@ int main(void)
     int curr_area;
 
     cv::namedWindow("Binary Image");
-    cv::Mat img_hsv, img_thresholded;// img_canny, rotated;
+    cv::Mat img_hsv1, img_hsv2, img_thresholded1, img_thresholded2;// img_canny, rotated;
     
     
 
@@ -547,21 +702,29 @@ int main(void)
             cv::cvtColor(mat_frame,mat_frame,cv::COLOR_RGB2BGR);
             cv::cvtColor(mat_frame,img_hsv,cv::COLOR_BGR2HSV);
             
-            img_thresholded = cv::Mat(mat_frame.size(),CV_8UC1);
-            cv::inRange(img_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),img_thresholded);
+            img_thresholded1 = cv::Mat(mat_frame.size(),CV_8UC1);
+            img_thresholded2 = cv::Mat(mat_frame.size(),CV_8UC1);
+
+            cv::inRange(img_hsv1,cv::Scalar(iLowH1, iLowS1, iLowV1),cv::Scalar(iHighH1, iHighS1, iHighV1),img_thresholded1);
+            cv::inRange(img_hsv2,cv::Scalar(iLowH2, iLowS2, iLowV2),cv::Scalar(iHighH2, iHighS2, iHighV2),img_thresholded2);
+
             // cv::GaussianBlur(img_thresholded,img_thresholded,cv::Size(9,9),2,2);
 
-            cv::erode(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+            cv::erode(img_thresholded1,img_thresholded1,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+            cv::erode(img_thresholded2,img_thresholded2,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+
             // cv::dilate(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
 
-            cv::Point3f img_target= find_target(img_thresholded); //rtn x, y and area as z
-            curr_area = img_target.z;
+            cv::Point3f img_target1= find_target(img_thresholded1); //rtn x, y and area as z
+            cv::Point3f img_target2= find_target(img_thresholded2); //rtn x, y and area as z
+
+            curr_area = img_target1.z;
 
             if (curr_area != 0)
             {
                 VERBOSETP("Target area: ",curr_area);
-                iLastX = img_target.x;
-                iLastY = img_target.y;
+                iLastX = img_target1.x;
+                iLastY = img_target1.y;
                 Point2D new_ball_pos(iLastX,iLastY);
                 // increase_pace();
                 tracker.Process(new_ball_pos);
