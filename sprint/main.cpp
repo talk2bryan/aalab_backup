@@ -109,19 +109,7 @@ static void pan_right()
     Head::GetInstance()->MoveByAngle(30,30);
     Head::GetInstance()->MoveByAngle(60,30);
 }
-static void start_running()
-{//update (x, y, a) move amplitude
-    if( !Walking::GetInstance()->IsRunning() )
-    {
-        VERBOSE("running...")
-        Walking::GetInstance()->PERIOD_TIME = 600;
-        // Walking::GetInstance()->X_MOVE_AMPLITUDE += 10.0;
-        // Walking::GetInstance()->Y_MOVE_AMPLITUDE = 1;
-        // Walking::GetInstance()->Y_OFFSET = 0;
-        Walking::GetInstance()->Start();
-    }
-    
-}
+
 
 static void restore_params()
 {
@@ -145,15 +133,30 @@ void decrease_pace()
     Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
 }
 
-void stop_running()
+static void start_running()
+{//update (x, y, a) move amplitude
+    if( !Walking::GetInstance()->IsRunning() )
+    {
+        VERBOSE("running...")
+        Walking::GetInstance()->PERIOD_TIME = 500;
+        // Walking::GetInstance()->X_MOVE_AMPLITUDE += 10.0;
+        // Walking::GetInstance()->Y_MOVE_AMPLITUDE = 1;
+        // Walking::GetInstance()->Y_OFFSET = 0;
+        Walking::GetInstance()->Start();
+        usleep(6000);
+    }
+    
+}
+
+static void stop_running()
 {
     if( Walking::GetInstance()->IsRunning() )
     {   
+        Walking::GetInstance()->Stop();
         VERBOSE("stopped running")
         Walking::GetInstance()->PERIOD_TIME = default_period_time;
         Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
         Walking::GetInstance()->Y_MOVE_AMPLITUDE = default_y_move_amp;
-        Walking::GetInstance()->Stop();
     }
 }
 static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
@@ -190,7 +193,7 @@ static void adjust_gait()
     usleep(200000);
 }
 
-static void move_backward()
+static void move_backwards()
 {
     if (! going_backwards)
     {
@@ -198,8 +201,7 @@ static void move_backward()
         Walking::GetInstance()->X_MOVE_AMPLITUDE=-10;
         going_backwards = true;
         VERBOSETP("new X_MOVE_AMPLITUDE: ",Walking::GetInstance()->X_MOVE_AMPLITUDE);
-        start_running();
-        usleep(8*1000);        
+        start_running();       
     }
      
 }
@@ -573,7 +575,7 @@ int main(void)
                 if (curr_area >= 13000)
                 {
                     stop_running();
-                    move_backward();
+                    move_backwards();
                 }
 
 
