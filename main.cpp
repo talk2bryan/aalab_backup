@@ -85,6 +85,8 @@ static const double max_tilt_top = 25;
 static const double max_tilt_bottom= -12;
 static const double max_pan = 65;
 
+static cv::Point true_coordinates(-1,-1);
+
 
 
 
@@ -250,40 +252,38 @@ static void scan_area()
     }
 }
 
-static float get_relative_distance_between_frame_coordinates(const cv::Mat& frame_a, const cv::Mat& frame_b)
+static cv::Point get_centre_of_frame(const cv::Mat& frame)
 {
-    std::vector<cv::Point> first_frame_points, second_frame_points;
+    std::vector<cv::Point> frame_points,
     static double sum_x, sum_y; //finding the x and y based on averaged vals
-    float result = 0.0;
+    cv::Point result(-1,-1);
 
-    first_frame_points = get_points_in_clockwise_order(frame_a);
-    second_frame_points = get_points_in_clockwise_order(frame_b);
+    frame_points = get_points_in_clockwise_order(frame);
 
-    if (first_frame_points[0].x != -1 || first_frame_points[0].y != -1
-        && second_frame_points[0].x != =1 || second_frame_points[0].y != -1)
+    if ( frame_points[0].x != -1 && frame_points[0].y != -1 )
     {
         sum_y = 0.0;
         sum_x = 0.0;
         
         for (int i = 0; i < num_vertices_square; ++i)
         {
-            sum_x += first_frame_points.at(i).x;
-            sum_y += first_frame_points.at(i).y;
+            sum_x += frame_points.at(i).x;
+            sum_y += frame_points.at(i).y;
         }
-        cv::Point a( (sum_x/num_vertices_square), (sum_y/num_vertices_square) );
-
-        sum_y = 0.0;
-        sum_x = 0.0;
-        
-        for (int i = 0; i < num_vertices_square; ++i)
-        {
-            sum_x += second_frame_points.at(i).x;
-            sum_y += second_frame_points.at(i).y;
-        }
-        cv::Point b( (sum_x/num_vertices_square), (sum_y/num_vertices_square) );
-
-        result = get_2D_distance(a,b);
+        return cv::Point( (sum_x/num_vertices_square), (sum_y/num_vertices_square) );
     }
+    return result;
+}
+
+static float get_relative_distance_between_frame_coordinates(const cv::Mat& frame_a, const cv::Mat& frame_b)
+{
+    float result = 0.0;
+
+    cv::Point a( get_centre_of_frame(frame_a) );
+    cv::Point b( get_centre_of_frame(frame_b) );
+
+    result = get_2D_distance(a,b);
+
     return result;
 }
 
@@ -340,11 +340,19 @@ static cv::Point3f find_target(cv::Mat& frame)
     static std::vector<cv::Point> ordered_points;
     static double target_x, target_y, target_area, sum_x, sum_y; //finding the x and y based on averaged vals
     static std::vector<cv::Vec4i> hierarchy;
-    
+    float shortest_path = 100000.0;
+
     //canny, then check if it's a rectangle and check if a circle's in it
     cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
     cv::findContours( img_canny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);//CV_RETR_EXTERNAL
 
+    for (int i = 0; i < 5; ++i)
+    {
+        //loop through both arrays and find shortest distance
+        float running_distance = get_relative_distance_between_frame_coordinates(frame_a_array[i],frame_a_array[i]);
+
+
+    }
     if (contours.size() > 0)
     {
         for (size_t i = 0; i < contours.size(); ++i)
