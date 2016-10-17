@@ -85,7 +85,9 @@ static const double max_tilt_top = 25;
 static const double max_tilt_bottom= -12;
 static const double max_pan = 65;
 
-static cv::Point true_coordinates(-1,-1);
+static cv::Mat global_frame_a_array[10];
+static cv::Mat global_frame_b_array[10];
+
 
 
 
@@ -252,39 +254,17 @@ static void scan_area()
     }
 }
 
-static cv::Point get_centre_of_frame(const cv::Mat& frame)
+static cv::Point3f get_relative_distance_between_frame_coordinates(const cv::Mat& frame_a, const cv::Mat& frame_b)
 {
-    std::vector<cv::Point> frame_points,
-    static double sum_x, sum_y; //finding the x and y based on averaged vals
-    cv::Point result(-1,-1);
-
-    frame_points = get_points_in_clockwise_order(frame);
-
-    if ( frame_points[0].x != -1 && frame_points[0].y != -1 )
-    {
-        sum_y = 0.0;
-        sum_x = 0.0;
-        
-        for (int i = 0; i < num_vertices_square; ++i)
-        {
-            sum_x += frame_points.at(i).x;
-            sum_y += frame_points.at(i).y;
-        }
-        return cv::Point( (sum_x/num_vertices_square), (sum_y/num_vertices_square) );
-    }
-    return result;
-}
-
-static float get_relative_distance_between_frame_coordinates(const cv::Mat& frame_a, const cv::Mat& frame_b)
-{
-    float result = 0.0;
+    float x, y;
 
     cv::Point a( get_centre_of_frame(frame_a) );
     cv::Point b( get_centre_of_frame(frame_b) );
 
-    result = get_2D_distance(a,b);
+    x = (a.x+b.x)/2;
+    y = (a.y+b.y)/2;
 
-    return result;
+    return cv::Point3f(x,y, get_2D_distance(a,b));
 }
 
 static std::vector<cv::Point> get_points_in_clockwise_order(const cv::Mat& frame)
@@ -325,62 +305,9 @@ static std::vector<cv::Point> get_points_in_clockwise_order(const cv::Mat& frame
                     ordered_points[2] = approx_poly_points[3];
                     ordered_points[3] = approx_poly_points[0];
                 }
-            }
-        }
-    }
-    return ordered_points;
-}
 
-static cv::Point3f find_target(cv::Mat& frame)
-{
-    cv::Point3f target_centre;
-    cv::Mat img_canny,rotated;
-    static std::vector<std::vector<cv::Point> > contours; 
-    static std::vector<cv::Point> approx_poly_points;
-    static std::vector<cv::Point> ordered_points;
-    static double target_x, target_y, target_area, sum_x, sum_y; //finding the x and y based on averaged vals
-    static std::vector<cv::Vec4i> hierarchy;
-    float shortest_path = 100000.0;
-
-    //canny, then check if it's a rectangle and check if a circle's in it
-    cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
-    cv::findContours( img_canny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);//CV_RETR_EXTERNAL
-
-    for (int i = 0; i < 5; ++i)
-    {
-        //loop through both arrays and find shortest distance
-        float running_distance = get_relative_distance_between_frame_coordinates(frame_a_array[i],frame_a_array[i]);
-
-
-    }
-    if (contours.size() > 0)
-    {
-        for (size_t i = 0; i < contours.size(); ++i)
-        {
-            // approximate contour with accuracy proportional
-            // to the contour perimeter
-            cv::approxPolyDP( cv::Mat(contours[i]), approx_poly_points, cv::arcLength(cv::Mat(contours[i]), true)*0.05 , true);
-            if ( (approx_poly_points.size() == num_vertices_square) 
-                && (fabs(cv::contourArea(cv::Mat(approx_poly_points))) > min_target_area)
-                && (cv::isContourConvex(approx_poly_points)) 
-                )
-            {   //points are either 
-                /*
-                a   d           OR     b   a
-                b   c //normal         c   d //abnormal
-                */
-                //if the slope between a and c is -ve, then we have the abnormal case
-                ordered_points = approx_poly_points;
-                if(approx_poly_points[0].x > approx_poly_points[2].x) //positive slope
-                {//shift all
-                    ordered_points[0] = approx_poly_points[1];
-                    ordered_points[1] = approx_poly_points[2];
-                    ordered_points[2] = approx_poly_points[3];
-                    ordered_points[3] = approx_poly_points[0];
-                }
-
-                //now the order of points is: top left, bottom left, bottom right, top right.
-                rotated = cv::Mat(transformed_height_width,transformed_height_width,CV_8UC1); //this will contain our roi
+                #ifdef SHOWROI
+                cv::Mat rotated = cv::Mat(transformed_height_width,transformed_height_width,CV_8UC1); //this will contain our roi
                 cv::Point2f dst_vertices[4]; 
                 //in the order:
                 //top left, bottom left, bottom right, top right
@@ -400,43 +327,151 @@ static cv::Point3f find_target(cv::Mat& frame)
                 cv::Size warp_size(transformed_height_width,transformed_height_width);
                 cv::warpPerspective(frame,rotated,warpAffineMatrix,warp_size,cv::INTER_LINEAR,cv::BORDER_CONSTANT);
 
-                //get area, (check if in range), get x and y
-                target_area = cv::contourArea(approx_poly_points);
-
-                if (min_target_area < target_area && target_area < max_target_area)
-                {//need to add an added layer of verification -- TODO black patch detection
-                    sum_y = 0.0;
-                    sum_x = 0.0;
-                    
-                    VERBOSE("Found target");
-                    found_target = true;
-                    for (int i = 0; i < approx_poly_points.size(); ++i)
-                    {
-                        sum_x += approx_poly_points.at(i).x;
-                        sum_y += approx_poly_points.at(i).y;
-                    }
-                    target_x = sum_x/approx_poly_points.size();
-                    target_y = sum_y/approx_poly_points.size();
-
-                    if(rotated.data)
-                    {
-                        cv::line(rotated, cv::Point(110,110), cv::Point(120,110), cv::Scalar(255,0,0),1,1);
-                        cv::imshow("rotated",rotated);
-                    }
-                    target_centre = cv::Point3f(target_x, target_y,target_area);
-
-                }//if target
-                else
+                if(rotated.data)
                 {
-                    target_centre = cv::Point3f(0.0,0.0,0.0);
+                    cv::imshow("rotated",rotated);
                 }
-            }//if rect
-        }//for contours
-    }//if contours > 0
-    else
-    {
-        target_centre = cv::Point3f(0.0,0.0,0.0);
+                #endif
+            }
+        }
     }
+    return ordered_points;
+}
+
+static cv::Point get_centre_of_frame(const cv::Mat& frame)
+{
+    std::vector<cv::Point> frame_points,
+    static double sum_x, sum_y; //finding the x and y based on averaged vals
+    cv::Point result(-1,-1);
+
+    frame_points = get_points_in_clockwise_order(frame);
+
+    if ( frame_points[0].x != -1 && frame_points[0].y != -1 )
+    {
+        sum_y = 0.0;
+        sum_x = 0.0;
+        
+        for (int i = 0; i < num_vertices_square; ++i)
+        {
+            sum_x += frame_points.at(i).x;
+            sum_y += frame_points.at(i).y;
+        }
+        return cv::Point( (sum_x/num_vertices_square), (sum_y/num_vertices_square) );
+    }
+    return result;
+}
+
+static cv::Point3f find_target()
+{
+    cv::Point3f target_centre(0.0,0.0,0.0);
+    cv::Mat img_canny,rotated;
+    static std::vector<std::vector<cv::Point> > contours; 
+    static std::vector<cv::Point> approx_poly_points;
+    static std::vector<cv::Point> ordered_points;
+    static double target_x, target_y, target_area, sum_x, sum_y; //finding the x and y based on averaged vals
+    static std::vector<cv::Vec4i> hierarchy;
+    float shortest_path = 100000.0;
+    cv::Point3f point_and_dist;
+
+    // //canny, then check if it's a rectangle and check if a circle's in it
+    // cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
+    // cv::findContours( img_canny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);//CV_RETR_EXTERNAL
+
+    for (int i = 0; i < 5; ++i)
+    {
+        //loop through both arrays and find shortest distance
+        point_and_dist = get_relative_distance_between_frame_coordinates(global_frame_a_array[i],global_frame_b_array[i]);
+        float running_distance = point_and_dist.z;
+
+        if (running_distance < shortest_path)
+        {
+            shortest_path = running_distance;
+            target_centre = cv::Point3f(point_and_dist.x,point_and_dist.y, 400);//dummy - remove //(global_frame_a_array[i].size() * global_frame_b_array[i].size()));
+        }
+    }
+    // if (contours.size() > 0)
+    // {
+    //     for (size_t i = 0; i < contours.size(); ++i)
+    //     {
+    //         // approximate contour with accuracy proportional
+    //         // to the contour perimeter
+    //         cv::approxPolyDP( cv::Mat(contours[i]), approx_poly_points, cv::arcLength(cv::Mat(contours[i]), true)*0.05 , true);
+    //         if ( (approx_poly_points.size() == num_vertices_square) 
+    //             && (fabs(cv::contourArea(cv::Mat(approx_poly_points))) > min_target_area)
+    //             && (cv::isContourConvex(approx_poly_points)) 
+    //             )
+    //         {   //points are either 
+    //             /*
+    //             a   d           OR     b   a
+    //             b   c //normal         c   d //abnormal
+    //             */
+    //             //if the slope between a and c is -ve, then we have the abnormal case
+    //             ordered_points = approx_poly_points;
+    //             if(approx_poly_points[0].x > approx_poly_points[2].x) //positive slope
+    //             {//shift all
+    //                 ordered_points[0] = approx_poly_points[1];
+    //                 ordered_points[1] = approx_poly_points[2];
+    //                 ordered_points[2] = approx_poly_points[3];
+    //                 ordered_points[3] = approx_poly_points[0];
+    //             }
+
+    //             //now the order of points is: top left, bottom left, bottom right, top right.
+    //             rotated = cv::Mat(transformed_height_width,transformed_height_width,CV_8UC1); //this will contain our roi
+    //             cv::Point2f dst_vertices[4]; 
+    //             //in the order:
+    //             //top left, bottom left, bottom right, top right
+    //             dst_vertices[0] = cv::Point(0,0);
+    //             dst_vertices[1] = cv::Point(0,transformed_height_width-1);
+    //             dst_vertices[2] = cv::Point(transformed_height_width-1,transformed_height_width-1);
+    //             dst_vertices[3] = cv::Point(transformed_height_width-1,0);
+
+    //             cv::Point2f src_vertices[4];
+    //             src_vertices[0] = ordered_points[0];
+    //             src_vertices[1] = ordered_points[1];
+    //             src_vertices[2] = ordered_points[2];
+    //             src_vertices[3] = ordered_points[3];
+                
+    //             cv::Mat warpAffineMatrix = cv::getPerspectiveTransform(src_vertices,dst_vertices);
+
+    //             cv::Size warp_size(transformed_height_width,transformed_height_width);
+    //             cv::warpPerspective(frame,rotated,warpAffineMatrix,warp_size,cv::INTER_LINEAR,cv::BORDER_CONSTANT);
+
+    //             //get area, (check if in range), get x and y
+    //             target_area = cv::contourArea(approx_poly_points);
+
+    //             if (min_target_area < target_area && target_area < max_target_area)
+    //             {//need to add an added layer of verification -- TODO black patch detection
+    //                 sum_y = 0.0;
+    //                 sum_x = 0.0;
+                    
+    //                 VERBOSE("Found target");
+    //                 found_target = true;
+    //                 for (int i = 0; i < approx_poly_points.size(); ++i)
+    //                 {
+    //                     sum_x += approx_poly_points.at(i).x;
+    //                     sum_y += approx_poly_points.at(i).y;
+    //                 }
+    //                 target_x = sum_x/approx_poly_points.size();
+    //                 target_y = sum_y/approx_poly_points.size();
+
+    //                 if(rotated.data)
+    //                 {
+    //                     cv::imshow("rotated",rotated);
+    //                 }
+    //                 target_centre = cv::Point3f(target_x, target_y,target_area);
+
+    //             }//if target
+    //             else
+    //             {
+    //                 target_centre = cv::Point3f(0.0,0.0,0.0);
+    //             }
+    //         }//if rect
+    //     }//for contours
+    // }//if contours > 0
+    for (int i = 0; i < 5; ++i)
+    {
+        //clear array contents        
+    }    
     return target_centre;
 }
 
@@ -693,11 +728,12 @@ int main(void)
     float iLastX = -1; 
     float iLastY = -1;
     int curr_area;
+    int array_index = 0;
 
     cv::namedWindow("Binary Image");
     cv::Mat img_hsv1, img_hsv2, img_thresholded1, img_thresholded2;// img_canny, rotated;
     
-    
+    //new logic here, run for 60 steps and run back -- may be cheaper
 
     while( true )
     {
@@ -723,16 +759,23 @@ int main(void)
 
             // cv::dilate(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
 
-            cv::Point3f img_target1= find_target(img_thresholded1); //rtn x, y and area as z
-            cv::Point3f img_target2= find_target(img_thresholded2); //rtn x, y and area as z
+            while(array_index <5)
+            {
+                global_frame_a_array[array_index] = img_thresholded1;
+                global_frame_b_array[array_index] = img_thresholded2;
+                array_index++;
+            }
+            array_index = 0;
 
-            curr_area = img_target1.z;
+            cv::Point3f img_target= find_target()
+
+            curr_area = img_target.z;
 
             if (curr_area != 0)
             {
                 VERBOSETP("Target area: ",curr_area);
-                iLastX = img_target1.x;
-                iLastY = img_target1.y;
+                iLastX = img_target.x;
+                iLastY = img_target.y;
                 Point2D new_ball_pos(iLastX,iLastY);
                 // increase_pace();
                 tracker.Process(new_ball_pos);
@@ -741,11 +784,11 @@ int main(void)
                 // usleep(240000);
                 // usleep((Walking::GetInstance()->PERIOD_TIME * 5)*1000);
 
-                if (curr_area >= 13000)
-                {
-                    stop_running();
-                    move_backward();
-                }
+                // if (curr_area >= 13000)
+                // {
+                //     stop_running();
+                //     move_backward();
+                // }
 
 
                 // if (curr_area < 7000)
