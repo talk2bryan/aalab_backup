@@ -87,6 +87,7 @@ static const double max_pan = 65;
 
 static cv::Mat global_frame_a_array[10];
 static cv::Mat global_frame_b_array[10];
+static int hsv_values[12];
 
 
 
@@ -254,31 +255,19 @@ static void scan_area()
     }
 }
 
-static cv::Point3f get_relative_distance_between_frame_coordinates(const cv::Mat& frame_a, const cv::Mat& frame_b)
-{
-    float x, y;
-
-    cv::Point a( get_centre_of_frame(frame_a) );
-    cv::Point b( get_centre_of_frame(frame_b) );
-
-    x = (a.x+b.x)/2;
-    y = (a.y+b.y)/2;
-
-    return cv::Point3f(x,y, get_2D_distance(a,b));
-}
-
 static std::vector<cv::Point> get_points_in_clockwise_order(const cv::Mat& frame)
 {
     cv::Mat img_canny;
     static std::vector<std::vector<cv::Point> > contours; 
     static std::vector<cv::Point> approx_poly_points;
     static std::vector<cv::Point> ordered_points;
+    static std::vector<cv::Vec4i> hierarchy;
 
     //canny, then check if it's a rectangle and check if a circle's in it
     cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
     cv::findContours( img_canny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
 
-    ordered_points[0] = cv::Point(-1,-1);
+    // ordered_points[0] = cv::Point(-1,-1);
 
     if (contours.size() > 0)
     {
@@ -340,8 +329,8 @@ static std::vector<cv::Point> get_points_in_clockwise_order(const cv::Mat& frame
 
 static cv::Point get_centre_of_frame(const cv::Mat& frame)
 {
-    std::vector<cv::Point> frame_points,
-    static double sum_x, sum_y; //finding the x and y based on averaged vals
+    std::vector<cv::Point> frame_points;
+    double sum_x, sum_y; //finding the x and y based on averaged vals
     cv::Point result(-1,-1);
 
     frame_points = get_points_in_clockwise_order(frame);
@@ -361,6 +350,22 @@ static cv::Point get_centre_of_frame(const cv::Mat& frame)
     return result;
 }
 
+static cv::Point3f get_relative_distance_between_frame_coordinates(const cv::Mat& frame_a, const cv::Mat& frame_b)
+{
+    float x, y;
+
+    cv::Point a( get_centre_of_frame(frame_a) );
+    cv::Point b( get_centre_of_frame(frame_b) );
+
+    x = (a.x+b.x)/2;
+    y = (a.y+b.y)/2;
+
+    printf("A: {%d, %d}\t", a.x,a.y);
+    printf("B: {%d, %d}\t", b.x,b.y);
+
+    return cv::Point3f(x,y, get_2D_distance(a,b));
+}
+
 static cv::Point3f find_target()
 {
     cv::Point3f target_centre(0.0,0.0,0.0);
@@ -369,7 +374,7 @@ static cv::Point3f find_target()
     static std::vector<cv::Point> approx_poly_points;
     static std::vector<cv::Point> ordered_points;
     static double target_x, target_y, target_area, sum_x, sum_y; //finding the x and y based on averaged vals
-    static std::vector<cv::Vec4i> hierarchy;
+    // static std::vector<cv::Vec4i> hierarchy;
     float shortest_path = 100000.0;
     cv::Point3f point_and_dist;
 
@@ -387,6 +392,7 @@ static cv::Point3f find_target()
         {
             shortest_path = running_distance;
             target_centre = cv::Point3f(point_and_dist.x,point_and_dist.y, 400);//dummy - remove //(global_frame_a_array[i].size() * global_frame_b_array[i].size()));
+            printf("TARGET: {%d, %d}\n", point_and_dist.x,point_and_dist.y);
         }
     }
     // if (contours.size() > 0)
@@ -475,26 +481,68 @@ static cv::Point3f find_target()
     return target_centre;
 }
 
-static void set_range_params(int low_h, int &low_s, int &low_v, int &high_h, int &high_s, int &high_v)
+static void initialize_hsv_array()
+{
+    for(int i = 0; i<12;i++)
+    {
+        if(i <= 5)
+            hsv_values[i] = 0;
+        else if(i >5 && i <8)
+            hsv_values[i] = 179;
+        else
+            hsv_values[i] = 255;
+    }
+}
+static void set_range_params(int d_x)
 {
     std::cout <<"Setting the range for thresholding" <<std::endl;
     std::cout <<"Press the ENTER key when finished!\n"<<std::endl;
 
+    // int iLowH,iLowS,iLowV,iHighH,iHighS,iHighV;
+    // iLowH = hsv_values[d_x];
+    // iLowS = hsv_values[d_x+2];
+    // iLowV = hsv_values[d_x+4];
+
+    // iHighH = hsv_values[d_x+6];
+    // iHighS = hsv_values[d_x+8];
+    // iHighV = hsv_values[d_x+10];
+
+
     Image* rgb_output = new Image(Camera::WIDTH, Camera::HEIGHT, Image::RGB_PIXEL_SIZE);
+    
     //values for inRange thresholding of red colored objects
     cv::namedWindow("Colour Control", CV_WINDOW_AUTOSIZE);
     // cv::namedWindow("Canny Image", CV_WINDOW_AUTOSIZE);
     cv::namedWindow("Threshold Image", CV_WINDOW_AUTOSIZE);
 
+
     //Create trackbars in "Colour Control" window
-    cvCreateTrackbar("LowH", "Colour Control", low_h, 179);
-    cvCreateTrackbar("HighH", "Colour Control", high_h, 179);
+    // cvCreateTrackbar("LowH", "Colour Control", &iLowH, 179);
+    // cvCreateTrackbar("HighH", "Colour Control", &iHighH, 179);
 
-    cvCreateTrackbar("LowS", "Colour Control", low_s, 255);
-    cvCreateTrackbar("HighS", "Colour Control", high_s, 255);
+    // cvCreateTrackbar("LowS", "Colour Control", &iLowS, 255);
+    // cvCreateTrackbar("HighS", "Colour Control", &iHighS, 255);
 
-    cvCreateTrackbar("LowV", "Colour Control", low_v, 255); //Value (0 - 255)
-    cvCreateTrackbar("HighV", "Colour Control", high_v, 255);
+    // cvCreateTrackbar("LowV", "Colour Control", &iLowV, 255);
+    // cvCreateTrackbar("HighV", "Colour Control", &iHighV, 255);
+
+
+    cvCreateTrackbar("LowH", "Colour Control", &hsv_values[d_x], 179);
+    cvCreateTrackbar("HighH", "Colour Control", &hsv_values[d_x+6], 179);
+
+    cvCreateTrackbar("LowS", "Colour Control", &hsv_values[d_x+2], 255);
+    cvCreateTrackbar("HighS", "Colour Control", &hsv_values[d_x+8], 255);
+
+    cvCreateTrackbar("LowV", "Colour Control", &hsv_values[d_x+4], 255);
+    cvCreateTrackbar("HighV", "Colour Control", &hsv_values[d_x+10], 255);
+
+    // hsv_values[d_x] = iLowH;
+    // hsv_values[d_x+2] = iLowS;
+    // hsv_values[d_x+4] = iLowV;
+
+    // hsv_values[d_x+6] = iHighH;
+    // hsv_values[d_x+8] = iHighS;
+    // hsv_values[d_x+10] = iHighV;
     
     while( true )
     {
@@ -512,7 +560,7 @@ static void set_range_params(int low_h, int &low_s, int &low_v, int &high_h, int
 
             curr_thresholded = cv::Mat(curr_frame.size(),CV_8UC1);
             
-            cv::inRange(curr_hsv,cv::Scalar(low_h,low_s,low_v),cv::Scalar(high_h,high_s,high_v),curr_thresholded);
+            cv::inRange(curr_hsv,cv::Scalar(hsv_values[d_x],hsv_values[d_x+2],hsv_values[d_x+4]),cv::Scalar(hsv_values[d_x+6],hsv_values[d_x+8],hsv_values[d_x+10]),curr_thresholded);
             // cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(9,9),2,2);
             cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
             cv::Canny(curr_thresholded,curr_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
@@ -686,22 +734,24 @@ int main(void)
     }
     cm730.SyncWrite(MX28::P_GOAL_POSITION_L, 5, JointData::NUMBER_OF_JOINTS - 1, param);
 
-    //values for inRange thresholding of red colored objects    
-    set_range_params(iLowH1, iLowS1, iLowV1, iHighH1, iHighS1, iHighV1);
-    VERBOSETP("iLowH1: ",iLowH1);
-    VERBOSETP("iHighH: ",iHighH1);
-    VERBOSETP("iLowS: ",iLowS1);
-    VERBOSETP("iHighS: ",iHighS1);
-    VERBOSETP("iLowV: ",iLowV1);
-    VERBOSETP("iHighV: ",iHighV1);
+    initialize_hsv_array();
 
-    set_range_params(iLowH2, iLowS2, iLowV2, iHighH2, iHighS2, iHighV2);
-    VERBOSETP("iLowH1: ",iLowH2);
-    VERBOSETP("iHighH: ",iHighH2);
-    VERBOSETP("iLowS: ",iLowS2);
-    VERBOSETP("iHighS: ",iHighS2);
-    VERBOSETP("iLowV: ",iLowV2);
-    VERBOSETP("iHighV: ",iHighV2);
+    //values for inRange thresholding    
+    set_range_params(0);//(iLowH1, iLowS1, iLowV1, iHighH1, iHighS1, iHighV1);
+    VERBOSETP("iLowH1: ",hsv_values[0]);
+    VERBOSETP("iHighH1: ",hsv_values[6]);
+    VERBOSETP("iLowS1: ",hsv_values[2]);
+    VERBOSETP("iHighS1: ",hsv_values[8]);
+    VERBOSETP("iLowV1: ",hsv_values[4]);
+    VERBOSETP("iHighV1: ",hsv_values[10]);
+
+    set_range_params(1);//(iLowH2, iLowS2, iLowV2, iHighH2, iHighS2, iHighV2);
+    VERBOSETP("iLowH2: ",hsv_values[1]);
+    VERBOSETP("iHighH2: ",hsv_values[7]);
+    VERBOSETP("iLowS2: ",hsv_values[3]);
+    VERBOSETP("iHighS2: ",hsv_values[9]);
+    VERBOSETP("iLowV2: ",hsv_values[5]);
+    VERBOSETP("iHighV2: ",hsv_values[11]);
     
     VERBOSE("All set!\n");
 
@@ -721,8 +771,6 @@ int main(void)
 
     Head::GetInstance()->MoveByAngle(0,40); //keep head focused on target
     Walking::GetInstance()->X_MOVE_AMPLITUDE=10;
-
-
     
     //values for reporting the X and Y and area vals for found target
     float iLastX = -1; 
@@ -731,7 +779,7 @@ int main(void)
     int array_index = 0;
 
     cv::namedWindow("Binary Image");
-    cv::Mat img_hsv1, img_hsv2, img_thresholded1, img_thresholded2;// img_canny, rotated;
+    cv::Mat img_hsv, img_thresholded1, img_thresholded2;// img_canny, rotated;
     
     //new logic here, run for 60 steps and run back -- may be cheaper
 
@@ -748,9 +796,12 @@ int main(void)
             
             img_thresholded1 = cv::Mat(mat_frame.size(),CV_8UC1);
             img_thresholded2 = cv::Mat(mat_frame.size(),CV_8UC1);
+            
+            cv::inRange(img_hsv,cv::Scalar(hsv_values[0], hsv_values[2], hsv_values[4]),cv::Scalar(hsv_values[6], hsv_values[8], hsv_values[10]),img_thresholded1);
+            cv::inRange(img_hsv,cv::Scalar(hsv_values[1], hsv_values[3], hsv_values[5]),cv::Scalar(hsv_values[7], hsv_values[9], hsv_values[11]),img_thresholded2);
 
-            cv::inRange(img_hsv1,cv::Scalar(iLowH1, iLowS1, iLowV1),cv::Scalar(iHighH1, iHighS1, iHighV1),img_thresholded1);
-            cv::inRange(img_hsv2,cv::Scalar(iLowH2, iLowS2, iLowV2),cv::Scalar(iHighH2, iHighS2, iHighV2),img_thresholded2);
+            // cv::inRange(img_hsv,cv::Scalar(iLowH1, iLowS1, iLowV1),cv::Scalar(iHighH1, iHighS1, iHighV1),img_thresholded1);
+            // cv::inRange(img_hsv,cv::Scalar(iLowH2, iLowS2, iLowV2),cv::Scalar(iHighH2, iHighS2, iHighV2),img_thresholded2);
 
             // cv::GaussianBlur(img_thresholded,img_thresholded,cv::Size(9,9),2,2);
 
@@ -767,7 +818,7 @@ int main(void)
             }
             array_index = 0;
 
-            cv::Point3f img_target= find_target()
+            cv::Point3f img_target= find_target();
 
             curr_area = img_target.z;
 
@@ -779,7 +830,7 @@ int main(void)
                 Point2D new_ball_pos(iLastX,iLastY);
                 // increase_pace();
                 tracker.Process(new_ball_pos);
-                follower.Process(tracker.ball_position);
+                // follower.Process(tracker.ball_position);
                 // start_running();
                 // usleep(240000);
                 // usleep((Walking::GetInstance()->PERIOD_TIME * 5)*1000);
@@ -852,7 +903,13 @@ int main(void)
                 // Walking::GetInstance()->PERIOD_TIME = default_period_time;
                 // Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
             }
-            cv::imshow("Binary Image",img_thresholded);
+            cv::imshow("Binary Image1",img_thresholded1);
+            cv::imshow("Binary Image2",img_thresholded2);
+            cv::imshow("HSV",img_hsv);
+
+            #ifdef DEBUG
+            cv::circle(mat_frame,cv::Point(iLastX,iLastY),5,cv::Scalar(255,0,0));
+            #endif
             cv::imshow("Live feed", mat_frame);
             if(cv::waitKey(30) == 27) 
             {
