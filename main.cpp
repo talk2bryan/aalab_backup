@@ -38,23 +38,7 @@
 
 #define U2D_DEV_NAME        "/dev/ttyUSB0"
 
-static int iLowH1 = 0;
-static int iHighH1 = 179;
 
-static int iLowH2 = 0;
-static int iHighH2 = 179;
-
-static int iLowS1 = 0; 
-static int iHighS1 = 255;
-
-static int iLowS2 = 0; 
-static int iHighS2 = 255;
-
-static int iLowV1 = 0;
-static int iHighV1 = 255;
-
-static int iLowV2 = 0;
-static int iHighV2 = 255;
 
 static bool found_target = false;
 static bool going_backwards = false;
@@ -85,8 +69,6 @@ static const double max_tilt_top = 25;
 static const double max_tilt_bottom= -12;
 static const double max_pan = 65;
 
-static cv::Mat global_frame_a_array[10];
-static cv::Mat global_frame_b_array[10];
 static int hsv_values[12];
 
 
@@ -361,19 +343,18 @@ static cv::Point3f get_relative_distance_between_frame_coordinates(const cv::Mat
     y = (a.y+b.y)/2;
 
     printf("A: {%d, %d}\t", a.x,a.y);
-    printf("B: {%d, %d}\t", b.x,b.y);
+    printf("B: {%d, %d}\n", b.x,b.y);
 
     return cv::Point3f(x,y, get_2D_distance(a,b));
 }
 
-static cv::Point3f find_target()
+static cv::Point3f find_target(cv::Mat& frame_a, cv::Mat& frame_b)
 {
     cv::Point3f target_centre(0.0,0.0,0.0);
     cv::Mat img_canny,rotated;
     static std::vector<std::vector<cv::Point> > contours; 
     static std::vector<cv::Point> approx_poly_points;
     static std::vector<cv::Point> ordered_points;
-    static double target_x, target_y, target_area, sum_x, sum_y; //finding the x and y based on averaged vals
     // static std::vector<cv::Vec4i> hierarchy;
     float shortest_path = 100000.0;
     cv::Point3f point_and_dist;
@@ -382,19 +363,18 @@ static cv::Point3f find_target()
     // cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
     // cv::findContours( img_canny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);//CV_RETR_EXTERNAL
 
-    for (int i = 0; i < 5; ++i)
-    {
+  
         //loop through both arrays and find shortest distance
-        point_and_dist = get_relative_distance_between_frame_coordinates(global_frame_a_array[i],global_frame_b_array[i]);
-        float running_distance = point_and_dist.z;
+    point_and_dist = get_relative_distance_between_frame_coordinates(frame_a,frame_b);
+    float running_distance = point_and_dist.z;
+    printf("running_distance: %f\n", running_distance);
 
-        if (running_distance < shortest_path)
-        {
-            shortest_path = running_distance;
-            target_centre = cv::Point3f(point_and_dist.x,point_and_dist.y, 400);//dummy - remove //(global_frame_a_array[i].size() * global_frame_b_array[i].size()));
-            printf("TARGET: {%d, %d}\n", point_and_dist.x,point_and_dist.y);
-        }
+    if (running_distance < 1000) //calibrate value
+    {
+        target_centre = cv::Point3f(point_and_dist.x,point_and_dist.y, 400);//dummy - remove //(global_frame_a_array[i].size() * global_frame_b_array[i].size()));
+        // printf("TARGET: {%d, %d}\n", point_and_dist.x,point_and_dist.y);
     }
+    
     // if (contours.size() > 0)
     // {
     //     for (size_t i = 0; i < contours.size(); ++i)
@@ -474,10 +454,7 @@ static cv::Point3f find_target()
     //         }//if rect
     //     }//for contours
     // }//if contours > 0
-    for (int i = 0; i < 5; ++i)
-    {
-        //clear array contents        
-    }    
+   
     return target_centre;
 }
 
@@ -495,36 +472,14 @@ static void initialize_hsv_array()
 }
 static void set_range_params(int d_x)
 {
-    std::cout <<"Setting the range for thresholding" <<std::endl;
-    std::cout <<"Press the ENTER key when finished!\n"<<std::endl;
-
-    // int iLowH,iLowS,iLowV,iHighH,iHighS,iHighV;
-    // iLowH = hsv_values[d_x];
-    // iLowS = hsv_values[d_x+2];
-    // iLowV = hsv_values[d_x+4];
-
-    // iHighH = hsv_values[d_x+6];
-    // iHighS = hsv_values[d_x+8];
-    // iHighV = hsv_values[d_x+10];
-
+    VERBOSE("Setting the range for thresholding");
+    VERBOSE("Press the ENTER key when finished!\n");
 
     Image* rgb_output = new Image(Camera::WIDTH, Camera::HEIGHT, Image::RGB_PIXEL_SIZE);
     
     //values for inRange thresholding of red colored objects
     cv::namedWindow("Colour Control", CV_WINDOW_AUTOSIZE);
-    // cv::namedWindow("Canny Image", CV_WINDOW_AUTOSIZE);
     cv::namedWindow("Threshold Image", CV_WINDOW_AUTOSIZE);
-
-
-    //Create trackbars in "Colour Control" window
-    // cvCreateTrackbar("LowH", "Colour Control", &iLowH, 179);
-    // cvCreateTrackbar("HighH", "Colour Control", &iHighH, 179);
-
-    // cvCreateTrackbar("LowS", "Colour Control", &iLowS, 255);
-    // cvCreateTrackbar("HighS", "Colour Control", &iHighS, 255);
-
-    // cvCreateTrackbar("LowV", "Colour Control", &iLowV, 255);
-    // cvCreateTrackbar("HighV", "Colour Control", &iHighV, 255);
 
 
     cvCreateTrackbar("LowH", "Colour Control", &hsv_values[d_x], 179);
@@ -536,14 +491,6 @@ static void set_range_params(int d_x)
     cvCreateTrackbar("LowV", "Colour Control", &hsv_values[d_x+4], 255);
     cvCreateTrackbar("HighV", "Colour Control", &hsv_values[d_x+10], 255);
 
-    // hsv_values[d_x] = iLowH;
-    // hsv_values[d_x+2] = iLowS;
-    // hsv_values[d_x+4] = iLowV;
-
-    // hsv_values[d_x+6] = iHighH;
-    // hsv_values[d_x+8] = iHighS;
-    // hsv_values[d_x+10] = iHighV;
-    
     while( true )
     {
         LinuxCamera::GetInstance()->CaptureFrame();
@@ -577,65 +524,8 @@ static void set_range_params(int d_x)
             break;
         }
     }
-    
 }
 
-// static void set_range_params()
-// {
-//     std::cout <<"Setting the range for thresholding" <<std::endl;
-//     std::cout <<"Press the ENTER key when finished!\n"<<std::endl;
-
-//     Image* rgb_output = new Image(Camera::WIDTH, Camera::HEIGHT, Image::RGB_PIXEL_SIZE);
-//     //values for inRange thresholding of red colored objects
-//     cv::namedWindow("Colour Control", CV_WINDOW_AUTOSIZE);
-//     // cv::namedWindow("Canny Image", CV_WINDOW_AUTOSIZE);
-//     cv::namedWindow("Threshold Image", CV_WINDOW_AUTOSIZE);
-
-//     //Create trackbars in "Colour Control" window
-//     cvCreateTrackbar("LowH", "Colour Control", &iLowH, 179);
-//     cvCreateTrackbar("HighH", "Colour Control", &iHighH, 179);
-
-//     cvCreateTrackbar("LowS", "Colour Control", &iLowS, 255);
-//     cvCreateTrackbar("HighS", "Colour Control", &iHighS, 255);
-
-//     cvCreateTrackbar("LowV", "Colour Control", &iLowV, 255); //Value (0 - 255)
-//     cvCreateTrackbar("HighV", "Colour Control", &iHighV, 255);
-    
-//     while( true )
-//     {
-//         LinuxCamera::GetInstance()->CaptureFrame();
-//         memcpy(rgb_output->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageSize);
-
-//         cv::Mat curr_frame=cv::Mat(rgb_output->m_Height,rgb_output->m_Width,CV_8UC3,rgb_output->m_ImageData);
-//         cv::Mat curr_hsv,curr_canny, curr_thresholded;
-        
-//         if( curr_frame.data )
-//         {        
-//             //first convert cam image to bgr before hsv
-//             cv::cvtColor(curr_frame,curr_frame,cv::COLOR_RGB2BGR);
-//             cv::cvtColor(curr_frame,curr_hsv,cv::COLOR_BGR2HSV);
-
-//             curr_thresholded = cv::Mat(curr_frame.size(),CV_8UC1);
-            
-//             cv::inRange(curr_hsv,cv::Scalar(iLowH,iLowS,iLowV),cv::Scalar(iHighH,iHighS,iHighV),curr_thresholded);
-//             // cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(9,9),2,2);
-//             cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
-//             cv::Canny(curr_thresholded,curr_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
-//             // cv::dilate(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
-//         }
-        
-//         // cv::imshow("Canny Image",curr_canny);
-//         cv::imshow("Threshold Image",curr_thresholded);
-//         cv::imshow("Colour Control",curr_frame);
-        
-//         if(cv::waitKey(30) == 10) 
-//         {
-//             cv::destroyAllWindows();
-//             break;
-//         }
-//     }
-    
-// }
 
 /*find  cosine of angle between two vectors from pt0->pt1 and from pt0->pt2 */
 // static double find_cosine( const cv::Point pt1, const cv::Point pt2, const cv::Point pt0 )
@@ -737,24 +627,26 @@ int main(void)
     initialize_hsv_array();
 
     //values for inRange thresholding    
-    set_range_params(0);//(iLowH1, iLowS1, iLowV1, iHighH1, iHighS1, iHighV1);
+    set_range_params(0);
+    set_range_params(1);
+
+    #ifdef DEBUG
     VERBOSETP("iLowH1: ",hsv_values[0]);
     VERBOSETP("iHighH1: ",hsv_values[6]);
     VERBOSETP("iLowS1: ",hsv_values[2]);
     VERBOSETP("iHighS1: ",hsv_values[8]);
     VERBOSETP("iLowV1: ",hsv_values[4]);
     VERBOSETP("iHighV1: ",hsv_values[10]);
-
-    set_range_params(1);//(iLowH2, iLowS2, iLowV2, iHighH2, iHighS2, iHighV2);
+    printf("\n");
     VERBOSETP("iLowH2: ",hsv_values[1]);
     VERBOSETP("iHighH2: ",hsv_values[7]);
     VERBOSETP("iLowS2: ",hsv_values[3]);
     VERBOSETP("iHighS2: ",hsv_values[9]);
     VERBOSETP("iLowV2: ",hsv_values[5]);
     VERBOSETP("iHighV2: ",hsv_values[11]);
+    #endif
     
-    VERBOSE("All set!\n");
-
+    printf("All set!\n");
     printf("Press the ENTER key to begin!\n");
     getchar();
    
@@ -776,10 +668,8 @@ int main(void)
     float iLastX = -1; 
     float iLastY = -1;
     int curr_area;
-    int array_index = 0;
 
-    cv::namedWindow("Binary Image");
-    cv::Mat img_hsv, img_thresholded1, img_thresholded2;// img_canny, rotated;
+    cv::Mat img_hsv, img_thresholded1, img_thresholded2;
     
     //new logic here, run for 60 steps and run back -- may be cheaper
 
@@ -800,9 +690,6 @@ int main(void)
             cv::inRange(img_hsv,cv::Scalar(hsv_values[0], hsv_values[2], hsv_values[4]),cv::Scalar(hsv_values[6], hsv_values[8], hsv_values[10]),img_thresholded1);
             cv::inRange(img_hsv,cv::Scalar(hsv_values[1], hsv_values[3], hsv_values[5]),cv::Scalar(hsv_values[7], hsv_values[9], hsv_values[11]),img_thresholded2);
 
-            // cv::inRange(img_hsv,cv::Scalar(iLowH1, iLowS1, iLowV1),cv::Scalar(iHighH1, iHighS1, iHighV1),img_thresholded1);
-            // cv::inRange(img_hsv,cv::Scalar(iLowH2, iLowS2, iLowV2),cv::Scalar(iHighH2, iHighS2, iHighV2),img_thresholded2);
-
             // cv::GaussianBlur(img_thresholded,img_thresholded,cv::Size(9,9),2,2);
 
             cv::erode(img_thresholded1,img_thresholded1,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
@@ -810,15 +697,7 @@ int main(void)
 
             // cv::dilate(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
 
-            while(array_index <5)
-            {
-                global_frame_a_array[array_index] = img_thresholded1;
-                global_frame_b_array[array_index] = img_thresholded2;
-                array_index++;
-            }
-            array_index = 0;
-
-            cv::Point3f img_target= find_target();
+            cv::Point3f img_target= find_target(img_thresholded1, img_thresholded2);
 
             curr_area = img_target.z;
 
@@ -905,7 +784,6 @@ int main(void)
             }
             cv::imshow("Binary Image1",img_thresholded1);
             cv::imshow("Binary Image2",img_thresholded2);
-            cv::imshow("HSV",img_hsv);
 
             #ifdef DEBUG
             cv::circle(mat_frame,cv::Point(iLastX,iLastY),5,cv::Scalar(255,0,0));
