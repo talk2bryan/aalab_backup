@@ -249,8 +249,6 @@ static std::vector<cv::Point> get_points_in_clockwise_order(const cv::Mat& frame
     cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
     cv::findContours( img_canny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
 
-    // ordered_points[0] = cv::Point(-1,-1);
-
     if (contours.size() > 0)
     {
         for (size_t i = 0; i < contours.size(); ++i)
@@ -355,17 +353,10 @@ static cv::Point3f find_target(cv::Mat& frame_a, cv::Mat& frame_b)
     static std::vector<std::vector<cv::Point> > contours; 
     static std::vector<cv::Point> approx_poly_points;
     static std::vector<cv::Point> ordered_points;
-    // static std::vector<cv::Vec4i> hierarchy;
     float shortest_path = 100000.0;
-    cv::Point3f point_and_dist;
-
-    // //canny, then check if it's a rectangle and check if a circle's in it
-    // cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
-    // cv::findContours( img_canny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);//CV_RETR_EXTERNAL
 
   
-        //loop through both arrays and find shortest distance
-    point_and_dist = get_relative_distance_between_frame_coordinates(frame_a,frame_b);
+    cv::Point3f point_and_dist = get_relative_distance_between_frame_coordinates(frame_a,frame_b);
     float running_distance = point_and_dist.z;
     printf("running_distance: %f\n", running_distance);
 
@@ -470,6 +461,7 @@ static void initialize_hsv_array()
             hsv_values[i] = 255;
     }
 }
+
 static void set_range_params(int d_x)
 {
     VERBOSE("Setting the range for thresholding");
@@ -550,7 +542,6 @@ static void set_range_params(int d_x)
 
 int main(void)
 {
-
 	signal(SIGABRT, &sighandler);
     signal(SIGTERM, &sighandler);
     signal(SIGQUIT, &sighandler);
