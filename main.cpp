@@ -217,19 +217,7 @@ static void scan_area()
         else
         {
             Head::GetInstance()->InitTracking();
-            // VERBOSE("Head::GetInstance()->InitTracking()")
         }
-
-        // if( (target_not_found_count % 2) == 0)
-        // {
-        //     VERBOSE("panning left...");
-        //     // Walking::GetInstance()->A_MOVE_AMPLITUDE += 50.0;
-        // }
-        // else
-        // {
-        //     VERBOSE("panning right...");
-        //     // Walking::GetInstance()->A_MOVE_AMPLITUDE -= 50.0;
-        // }
     }
     else
     {
@@ -365,86 +353,6 @@ static cv::Point3f find_target(cv::Mat& frame_a, cv::Mat& frame_b)
         target_centre = cv::Point3f(point_and_dist.x,point_and_dist.y, 400);//dummy - remove //(global_frame_a_array[i].size() * global_frame_b_array[i].size()));
         // printf("TARGET: {%d, %d}\n", point_and_dist.x,point_and_dist.y);
     }
-    
-    // if (contours.size() > 0)
-    // {
-    //     for (size_t i = 0; i < contours.size(); ++i)
-    //     {
-    //         // approximate contour with accuracy proportional
-    //         // to the contour perimeter
-    //         cv::approxPolyDP( cv::Mat(contours[i]), approx_poly_points, cv::arcLength(cv::Mat(contours[i]), true)*0.05 , true);
-    //         if ( (approx_poly_points.size() == num_vertices_square) 
-    //             && (fabs(cv::contourArea(cv::Mat(approx_poly_points))) > min_target_area)
-    //             && (cv::isContourConvex(approx_poly_points)) 
-    //             )
-    //         {   //points are either 
-    //             /*
-    //             a   d           OR     b   a
-    //             b   c //normal         c   d //abnormal
-    //             */
-    //             //if the slope between a and c is -ve, then we have the abnormal case
-    //             ordered_points = approx_poly_points;
-    //             if(approx_poly_points[0].x > approx_poly_points[2].x) //positive slope
-    //             {//shift all
-    //                 ordered_points[0] = approx_poly_points[1];
-    //                 ordered_points[1] = approx_poly_points[2];
-    //                 ordered_points[2] = approx_poly_points[3];
-    //                 ordered_points[3] = approx_poly_points[0];
-    //             }
-
-    //             //now the order of points is: top left, bottom left, bottom right, top right.
-    //             rotated = cv::Mat(transformed_height_width,transformed_height_width,CV_8UC1); //this will contain our roi
-    //             cv::Point2f dst_vertices[4]; 
-    //             //in the order:
-    //             //top left, bottom left, bottom right, top right
-    //             dst_vertices[0] = cv::Point(0,0);
-    //             dst_vertices[1] = cv::Point(0,transformed_height_width-1);
-    //             dst_vertices[2] = cv::Point(transformed_height_width-1,transformed_height_width-1);
-    //             dst_vertices[3] = cv::Point(transformed_height_width-1,0);
-
-    //             cv::Point2f src_vertices[4];
-    //             src_vertices[0] = ordered_points[0];
-    //             src_vertices[1] = ordered_points[1];
-    //             src_vertices[2] = ordered_points[2];
-    //             src_vertices[3] = ordered_points[3];
-                
-    //             cv::Mat warpAffineMatrix = cv::getPerspectiveTransform(src_vertices,dst_vertices);
-
-    //             cv::Size warp_size(transformed_height_width,transformed_height_width);
-    //             cv::warpPerspective(frame,rotated,warpAffineMatrix,warp_size,cv::INTER_LINEAR,cv::BORDER_CONSTANT);
-
-    //             //get area, (check if in range), get x and y
-    //             target_area = cv::contourArea(approx_poly_points);
-
-    //             if (min_target_area < target_area && target_area < max_target_area)
-    //             {//need to add an added layer of verification -- TODO black patch detection
-    //                 sum_y = 0.0;
-    //                 sum_x = 0.0;
-                    
-    //                 VERBOSE("Found target");
-    //                 found_target = true;
-    //                 for (int i = 0; i < approx_poly_points.size(); ++i)
-    //                 {
-    //                     sum_x += approx_poly_points.at(i).x;
-    //                     sum_y += approx_poly_points.at(i).y;
-    //                 }
-    //                 target_x = sum_x/approx_poly_points.size();
-    //                 target_y = sum_y/approx_poly_points.size();
-
-    //                 if(rotated.data)
-    //                 {
-    //                     cv::imshow("rotated",rotated);
-    //                 }
-    //                 target_centre = cv::Point3f(target_x, target_y,target_area);
-
-    //             }//if target
-    //             else
-    //             {
-    //                 target_centre = cv::Point3f(0.0,0.0,0.0);
-    //             }
-    //         }//if rect
-    //     }//for contours
-    // }//if contours > 0
    
     return target_centre;
 }
