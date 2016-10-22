@@ -71,6 +71,9 @@ static const double max_pan = 65;
 
 static int hsv_values[12];
 
+static cv::Point POINT_A;
+static cv::Point POINT_B;
+
 
 
 
@@ -324,6 +327,9 @@ static cv::Point3f get_relative_distance_between_frame_coordinates(const cv::Mat
 
     cv::Point a( get_centre_of_frame(frame_a) );
     cv::Point b( get_centre_of_frame(frame_b) );
+
+    POINT_A = a;
+    POINT_B = b;
 
     x = (a.x+b.x)/2;
     y = (a.y+b.y)/2;
@@ -686,6 +692,7 @@ int main(void)
 
             #ifdef DEBUG
             cv::circle(mat_frame,cv::Point(iLastX,iLastY),5,cv::Scalar(255,0,0));
+            cv::line(mat_frame,POINT_A,POINT_B,cv::CV_RGB(0,255,0),1,8);
             #endif
             cv::imshow("Live feed", mat_frame);
             if(cv::waitKey(30) == 27) 
