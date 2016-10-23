@@ -706,7 +706,7 @@ int main(void)
 
             #ifdef DEBUG
             cv::circle(mat_frame,cv::Point(iLastX,iLastY),5,cv::Scalar(255,0,0));
-            cv::line(mat_frame,POINT_A,POINT_B,cv::CV_RGB(0,255,0),1,8);
+            cv::line(mat_frame,POINT_A,POINT_B,cv::Scalar(0,255,0),1,8);
             #endif
             cv::imshow("Live feed", mat_frame);
             if(cv::waitKey(30) == 27) 
