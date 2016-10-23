@@ -233,8 +233,10 @@ static std::vector<cv::Point> get_points_in_clockwise_order(const cv::Mat& frame
     cv::Mat img_canny;
     static std::vector<std::vector<cv::Point> > contours; 
     static std::vector<cv::Point> approx_poly_points;
-    static std::vector<cv::Point> ordered_points;
+    static std::vector<cv::Point> ordered_points[4];
     static std::vector<cv::Vec4i> hierarchy;
+
+    ordered_points[0] = cv::Point(-1,-1);
 
     //canny, then check if it's a rectangle and check if a circle's in it
     cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
@@ -324,26 +326,34 @@ static cv::Point get_centre_of_frame(const cv::Mat& frame)
 static cv::Point3f get_relative_distance_between_frame_coordinates(const cv::Mat& frame_a, const cv::Mat& frame_b)
 {
     float x, y;
+    cv::Point3f result(-1,-1,-1);
 
     cv::Point a( get_centre_of_frame(frame_a) );
     cv::Point b( get_centre_of_frame(frame_b) );
 
-    POINT_A = a;
-    POINT_B = b;
 
-    x = (a.x+b.x)/2;
-    y = (a.y+b.y)/2;
+    if ( (a.x != -1 && a.y != -1) && (b.x != -1 && b.y != -1) )
+    {
+        POINT_A = a;
+        POINT_B = b;
 
-    printf("A: {%d, %d}\t", a.x,a.y);
-    printf("B: {%d, %d}\n", b.x,b.y);
+        x = (a.x+b.x)/2;
+        y = (a.y+b.y)/2;
 
-    return cv::Point3f(x,y, get_2D_distance(a,b));
+        printf("A: {%d, %d}\t", a.x,a.y);
+        printf("B: {%d, %d}\n", b.x,b.y);
+
+        result = cv::Point3f(x,y, get_2D_distance(a,b))
+    }
+
+    return result;
 }
 
 static cv::Point3f find_target(cv::Mat& frame_a, cv::Mat& frame_b)
 {
-    cv::Point3f target_centre(0.0,0.0,0.0);
+    cv::Point3f target_centre(-1,-1,-1);
     cv::Mat img_canny,rotated;
+
     static std::vector<std::vector<cv::Point> > contours; 
     static std::vector<cv::Point> approx_poly_points;
     static std::vector<cv::Point> ordered_points;
@@ -351,15 +361,18 @@ static cv::Point3f find_target(cv::Mat& frame_a, cv::Mat& frame_b)
 
   
     cv::Point3f point_and_dist = get_relative_distance_between_frame_coordinates(frame_a,frame_b);
-    float running_distance = point_and_dist.z;
-    printf("running_distance: %f\n", running_distance);
 
-    if (running_distance < 1000) //calibrate value
+    if (point_and_dist.x != -1 && point_and_dist.y != -1 && point_and_dist.z != -1 )
     {
-        target_centre = cv::Point3f(point_and_dist.x,point_and_dist.y, 400);//dummy - remove //(global_frame_a_array[i].size() * global_frame_b_array[i].size()));
-        // printf("TARGET: {%d, %d}\n", point_and_dist.x,point_and_dist.y);
+        float running_distance = point_and_dist.z;
+        printf("running_distance: %f\n", running_distance);
+
+        if (running_distance < 1000) //calibrate value
+        {
+            target_centre = cv::Point3f(point_and_dist.x,point_and_dist.y, 400);//dummy - remove //(global_frame_a_array[i].size() * global_frame_b_array[i].size()));
+            // printf("TARGET: {%d, %d}\n", point_and_dist.x,point_and_dist.y);
+        }
     }
-   
     return target_centre;
 }
 
@@ -606,7 +619,7 @@ int main(void)
 
             curr_area = img_target.z;
 
-            if (curr_area != 0)
+            if (curr_area != -1)
             {
                 VERBOSETP("Target area: ",curr_area);
                 iLastX = img_target.x;
