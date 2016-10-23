@@ -236,8 +236,7 @@ static std::vector<cv::Point> get_points_in_clockwise_order(const cv::Mat& frame
     static std::vector<cv::Point> ordered_points[4];
     static std::vector<cv::Vec4i> hierarchy;
 
-    ordered_points[0].x = -1;
-    ordered_points[0].y = -1;
+    ordered_points[0] = cv::Point(-1,-1);
 
     //canny, then check if it's a rectangle and check if a circle's in it
     cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
