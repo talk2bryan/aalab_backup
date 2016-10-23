@@ -334,14 +334,28 @@ static cv::Point3f get_relative_distance_between_frame_coordinates(const cv::Mat
 
     if ( (a.x != -1 && a.y != -1) && (b.x != -1 && b.y != -1) )
     {
-        POINT_A = a;
-        POINT_B = b;
+        cv::Moments muA = cv::moments(frame_a, true);
+        cv::Moments muB = cv::moments(frame_b, true);
 
-        x = (a.x+b.x)/2;
-        y = (a.y+b.y)/2;
+        cv::Point center_A, center_B;
+        
+        center_A.x = muA.m10 / muA.m00;
+        center_A.y = muA.m01 / muA.m00;
 
-        printf("A: {%d, %d}\t", a.x,a.y);
-        printf("B: {%d, %d}\n", b.x,b.y);
+        center_B.x = muB.m10 / muB.m00;
+        center_B.y = muB.m01 / muB.m00;
+
+        POINT_A = center_A;
+        POINT_B = center_B;
+
+        // x = (a.x+b.x)/2;
+        // y = (a.y+b.y)/2;
+
+        x = (center_A.x+center_B.x)/2;
+        y = (center_A.y+center_B.y)/2;
+
+        printf("myA: {%d, %d}\t", a.x,a.y);
+        printf("myB: {%d, %d}\n", b.x,b.y);
 
         result = cv::Point3f(x,y, get_2D_distance(a,b));
     }
