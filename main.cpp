@@ -236,8 +236,6 @@ static std::vector<cv::Point> get_points_in_clockwise_order(const cv::Mat& frame
     static std::vector<cv::Point> ordered_points[4];
     static std::vector<cv::Vec4i> hierarchy;
 
-    ordered_points[0] = cv::Point(-1,-1);
-
     //canny, then check if it's a rectangle and check if a circle's in it
     cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
     cv::findContours( img_canny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
@@ -308,7 +306,7 @@ static cv::Point get_centre_of_frame(const cv::Mat& frame)
 
     frame_points = get_points_in_clockwise_order(frame);
 
-    if ( frame_points[0].x != -1 && frame_points[0].y != -1 )
+    if ( frame_points[0].x != 0 && frame_points[0].y != 0 )
     {
         sum_y = 0.0;
         sum_x = 0.0;
