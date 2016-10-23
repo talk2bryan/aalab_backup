@@ -236,7 +236,8 @@ static std::vector<cv::Point> get_points_in_clockwise_order(const cv::Mat& frame
     static std::vector<cv::Point> ordered_points[4];
     static std::vector<cv::Vec4i> hierarchy;
 
-    ordered_points[0] = cv::Point(-1,-1);
+    ordered_points[0].x = -1;
+    ordered_points[0].y = -1;
 
     //canny, then check if it's a rectangle and check if a circle's in it
     cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
@@ -343,7 +344,7 @@ static cv::Point3f get_relative_distance_between_frame_coordinates(const cv::Mat
         printf("A: {%d, %d}\t", a.x,a.y);
         printf("B: {%d, %d}\n", b.x,b.y);
 
-        result = cv::Point3f(x,y, get_2D_distance(a,b))
+        result = cv::Point3f(x,y, get_2D_distance(a,b));
     }
 
     return result;
