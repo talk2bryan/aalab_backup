@@ -348,16 +348,13 @@ static cv::Point3f get_relative_distance_between_frame_coordinates(const cv::Mat
         POINT_A = center_A;
         POINT_B = center_B;
 
-        // x = (a.x+b.x)/2;
-        // y = (a.y+b.y)/2;
-
         x = (center_A.x+center_B.x)/2;
         y = (center_A.y+center_B.y)/2;
 
-        printf("myA: {%d, %d}\t", a.x,a.y);
-        printf("myB: {%d, %d}\n", b.x,b.y);
+        printf("A: {%d, %d}\t", POINT_A.x,POINT_A.y);
+        printf("B: {%d, %d}\n", POINT_B.x,POINT_B.y);
 
-        result = cv::Point3f(x,y, get_2D_distance(a,b));
+        result = cv::Point3f(x,y, get_2D_distance(POINT_A,POINT_B));
     }
 
     return result;
@@ -641,7 +638,7 @@ int main(void)
                 Point2D new_ball_pos(iLastX,iLastY);
                 // increase_pace();
                 tracker.Process(new_ball_pos);
-                // follower.Process(tracker.ball_position);
+                follower.Process(tracker.ball_position);
                 // start_running();
                 // usleep(240000);
                 // usleep((Walking::GetInstance()->PERIOD_TIME * 5)*1000);
