@@ -308,7 +308,7 @@ static cv::Point get_centre_of_frame(const cv::Mat& frame)
 
     frame_points = get_points_in_clockwise_order(frame);
 
-    if ( frame_points[0].x != 0 && frame_points[0].y != 0 )
+    if ( frame_points[0].x != 0 && frame_points[0].y != 0 ) //------------------causes seg fault 30% of the time-----//
     {
         sum_y = 0.0;
         sum_x = 0.0;
@@ -328,11 +328,11 @@ static cv::Point3f get_relative_distance_between_frame_coordinates(const cv::Mat
     float x, y;
     cv::Point3f result(-1,-1,-1);
 
-    cv::Point a( get_centre_of_frame(frame_a) );
-    cv::Point b( get_centre_of_frame(frame_b) );
+    // cv::Point a( get_centre_of_frame(frame_a) );
+    // cv::Point b( get_centre_of_frame(frame_b) );
 
 
-    if ( (a.x != -1 && a.y != -1) && (b.x != -1 && b.y != -1) )
+    if ( true )//(a.x != -1 && a.y != -1) && (b.x != -1 && b.y != -1) )
     {
         cv::Moments muA = cv::moments(frame_a, true);
         cv::Moments muB = cv::moments(frame_b, true);
