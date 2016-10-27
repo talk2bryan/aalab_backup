@@ -636,6 +636,12 @@ int main(void)
                 iLastX = img_target.x;
                 iLastY = img_target.y;
                 Point2D new_ball_pos(iLastX,iLastY);
+
+                #ifdef BLIND_SPRINT
+                tracker.Process(new_ball_pos);
+                start_running();
+                usleep((Robot::Walking::GetInstance()->PERIOD_TIME * 10)*1000); //walk 10 steps
+                #else
                 // increase_pace();
                 tracker.Process(new_ball_pos);
                 follower.Process(tracker.ball_position);
@@ -698,6 +704,7 @@ int main(void)
                 //     // stop_running();
                 //     // usleep(250); 
                 // }
+                #endif
             
             }
             else
