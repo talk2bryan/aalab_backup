@@ -553,9 +553,8 @@ int main(void)
     }
     cm730.SyncWrite(MX28::P_GOAL_POSITION_L, 5, JointData::NUMBER_OF_JOINTS - 1, param);
 
-    initialize_hsv_array();
-
     //values for inRange thresholding    
+    initialize_hsv_array();
     set_range_params(0);
     set_range_params(1);
 
@@ -590,8 +589,8 @@ int main(void)
     default_y_move_amp =  Walking::GetInstance()->Y_MOVE_AMPLITUDE;
     default_pelvis_offset = Walking::GetInstance()->PELVIS_OFFSET;
 
-    Head::GetInstance()->MoveByAngle(0,40); //keep head focused on target
-    Walking::GetInstance()->X_MOVE_AMPLITUDE=10;
+    // Head::GetInstance()->MoveByAngle(0,40); //keep head focused on target
+    // Walking::GetInstance()->X_MOVE_AMPLITUDE=10;
     
     //values for reporting the X and Y and area vals for found target
     float iLastX = -1; 
@@ -712,7 +711,7 @@ int main(void)
                 //target not found
                 VERBOSE("not finding target...");
                 stop_running();
-                scan_area();
+                // scan_area();
                 //adjust_gait();
                 // usleep(200);
                 // Walking::GetInstance()->PERIOD_TIME = default_period_time;
@@ -722,7 +721,7 @@ int main(void)
             cv::imshow("Binary Image2",img_thresholded2);
 
             #ifdef DEBUG
-            cv::circle(mat_frame,cv::Point(iLastX,iLastY),5,cv::Scalar(255,0,0));
+            cv::circle(mat_frame,cv::Point(iLastX,iLastY),3,cv::Scalar(255,0,0));
             cv::line(mat_frame,POINT_A,POINT_B,cv::Scalar(0,255,0),1,8);
             #endif
             cv::imshow("Live feed", mat_frame);
