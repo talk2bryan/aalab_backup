@@ -648,11 +648,11 @@ int main(void)
                 // usleep(240000);
                 // usleep((Walking::GetInstance()->PERIOD_TIME * 5)*1000);
 
-                // if (curr_area >= 13000)
-                // {
-                //     stop_running();
-                //     move_backward();
-                // }
+                if (curr_area >= 13000)
+                {
+                    stop_running();
+                    // move_backward();
+                }
 
 
                 // if (curr_area < 7000)
