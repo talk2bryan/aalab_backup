@@ -631,81 +631,85 @@ int main(void)
 
             curr_dist = img_target.z;
 
-            if (curr_dist != -1)
+            if (curr_dist != -1) //if !goiung_backwards
             {
                 VERBOSETP("Targets' rel. distance: ",curr_dist);
                 iLastX = img_target.x;
                 iLastY = img_target.y;
                 Point2D new_ball_pos(iLastX,iLastY);
 
-                #ifdef BLIND_SPRINT
-                tracker.Process(new_ball_pos);
-                start_running();
-                usleep((Robot::Walking::GetInstance()->PERIOD_TIME * 10)*1000); //walk 10 steps
-                #else
-                // increase_pace();
-                tracker.Process(new_ball_pos);
-                follower.Process(tracker.ball_position);
-                // start_running();
-                // usleep(240000);
-                // usleep((Walking::GetInstance()->PERIOD_TIME * 5)*1000);
-
-                if (curr_dist >= past_finish_line_dist)
+                if (!going_backwards)
                 {
-                    stop_running();
-                    // move_backward();
+                    #ifdef BLIND_SPRINT
+                    tracker.Process(new_ball_pos);
+                    start_running();
+                    usleep((Robot::Walking::GetInstance()->PERIOD_TIME * 10)*1000); //walk 10 steps
+                    #else
+                    // increase_pace();
+                    tracker.Process(new_ball_pos);
+                    follower.Process(tracker.ball_position);
+                    // start_running();
+                    // usleep(240000);
+                    // usleep((Walking::GetInstance()->PERIOD_TIME * 5)*1000);
+
+                    if (curr_dist >= past_finish_line_dist)
+                    {
+                        stop_running();
+                        // move_backward();
+                    }
+
+
+                    // if (curr_dist < 7000)
+                    // {
+                        
+                    //     tracker.Process(new_ball_pos);
+                        // follower.Process(tracker.ball_position);
+                    //     //start_running();
+                    //     // usleep(2400000);
+                    // }
+                    // else
+                    // {
+                    //     stop_running();
+                    // }
+                
+                    // if (curr_dist > 7200) //~50cm away, 30cm away is about 10,500 in pixel area
+                    // {//closing in on object so tilt head downwards to focus
+                    //     Point2D new_ball_pos(iLastX,iLastY);
+                    //     Head::GetInstance()->MoveByAngleOffset(0,-1);
+                    //     // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;
+                    //     tracker.Process(new_ball_pos);
+                    //     follower.Process(tracker.ball_position);
+                    //     // start_running();
+                    //     usleep(240);
+                    //     // stop_running();
+                    //     // usleep((Robot::Walking::GetInstance()->PERIOD_TIME * 2)*1000);
+                    //     // follower.Process(tracker.ball_position);
+                    //     Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
+                    //     Walking::GetInstance()->PERIOD_TIME = default_period_time;
+                    //     // usleep(250); 
+                    // }
+                    // else
+                    // {
+                    //     //TODO - tweak period time to increase speed -----
+                    //     // get centre of the target, x marks the spot
+                    //     Point2D new_ball_pos(iLastX,iLastY);
+                    //     //walk straight because target is far away
+                    //     // Head::GetInstance()->MoveByAngle(0,30); //look straight
+                    //     // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;// Walking::GetInstance()->STEP_FB_RATIO = 1.0
+                    //     tracker.Process(new_ball_pos);
+                    //     // follower.Process(tracker.ball_position);
+                    //     // Walking::GetInstance()->PERIOD_TIME = 300;
+                    //     // Walking::GetInstance()->X_MOVE_AMPLITUDE = 10.0;
+                    //     follower.Process(tracker.ball_position);
+                    //     // start_running();
+                    //     usleep(240);
+                    //     Walking::GetInstance()->PERIOD_TIME = default_period_time;
+                    //     // stop_running();
+                    //     // usleep(250); 
+                    // }
+                    #endif
                 }
-
-
-                // if (curr_dist < 7000)
-                // {
-                    
-                //     tracker.Process(new_ball_pos);
-                    // follower.Process(tracker.ball_position);
-                //     //start_running();
-                //     // usleep(2400000);
-                // }
-                // else
-                // {
-                //     stop_running();
-                // }
-            
-                // if (curr_dist > 7200) //~50cm away, 30cm away is about 10,500 in pixel area
-                // {//closing in on object so tilt head downwards to focus
-                //     Point2D new_ball_pos(iLastX,iLastY);
-                //     Head::GetInstance()->MoveByAngleOffset(0,-1);
-                //     // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;
-                //     tracker.Process(new_ball_pos);
-                //     follower.Process(tracker.ball_position);
-                //     // start_running();
-                //     usleep(240);
-                //     // stop_running();
-                //     // usleep((Robot::Walking::GetInstance()->PERIOD_TIME * 2)*1000);
-                //     // follower.Process(tracker.ball_position);
-                //     Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
-                //     Walking::GetInstance()->PERIOD_TIME = default_period_time;
-                //     // usleep(250); 
-                // }
-                // else
-                // {
-                //     //TODO - tweak period time to increase speed -----
-                //     // get centre of the target, x marks the spot
-                //     Point2D new_ball_pos(iLastX,iLastY);
-                //     //walk straight because target is far away
-                //     // Head::GetInstance()->MoveByAngle(0,30); //look straight
-                //     // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;// Walking::GetInstance()->STEP_FB_RATIO = 1.0
-                //     tracker.Process(new_ball_pos);
-                //     // follower.Process(tracker.ball_position);
-                //     // Walking::GetInstance()->PERIOD_TIME = 300;
-                //     // Walking::GetInstance()->X_MOVE_AMPLITUDE = 10.0;
-                //     follower.Process(tracker.ball_position);
-                //     // start_running();
-                //     usleep(240);
-                //     Walking::GetInstance()->PERIOD_TIME = default_period_time;
-                //     // stop_running();
-                //     // usleep(250); 
-                // }
-                #endif
+                //else align straign w/target while moving backwards
             
             }
             else
