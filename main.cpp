@@ -63,6 +63,9 @@ static const int min_target_area = 100;
 static const int max_target_area = 33000; //these values are based on sampling the target area
 static const int max_target_not_found_count = 100;
 static const int max_target_found_count = 2;
+static const int past_finish_line_dist = 110;
+
+
 static const unsigned int num_vertices_square = 4;
 static const double max_fb_step = 30.0;
 static const double max_tilt_top = 25;
@@ -378,9 +381,9 @@ static cv::Point3f find_target(cv::Mat& frame_a, cv::Mat& frame_b)
         float running_distance = point_and_dist.z;
         printf("running_distance: %f\n", running_distance);
 
-        if (running_distance < 1000) //calibrate value
+        if ( running_distance >= 15 && running_distance <= 150) //calibrated value
         {
-            target_centre = cv::Point3f(point_and_dist.x,point_and_dist.y, 400);//dummy - remove //(global_frame_a_array[i].size() * global_frame_b_array[i].size()));
+            target_centre = cv::Point3f(point_and_dist.x,point_and_dist.y, point_and_dist.z);//dummy - remove //(global_frame_a_array[i].size() * global_frame_b_array[i].size()));
             // printf("TARGET: {%d, %d}\n", point_and_dist.x,point_and_dist.y);
         }
     }
@@ -589,13 +592,12 @@ int main(void)
     default_y_move_amp =  Walking::GetInstance()->Y_MOVE_AMPLITUDE;
     default_pelvis_offset = Walking::GetInstance()->PELVIS_OFFSET;
 
-    // Head::GetInstance()->MoveByAngle(0,40); //keep head focused on target
-    // Walking::GetInstance()->X_MOVE_AMPLITUDE=10;
+    Head::GetInstance()->MoveByAngle(0,40); //keep head focused on target
     
     //values for reporting the X and Y and area vals for found target
     float iLastX = -1; 
     float iLastY = -1;
-    int curr_area;
+    int curr_dist;
 
     cv::Mat img_hsv, img_thresholded1, img_thresholded2;
     
@@ -627,11 +629,11 @@ int main(void)
 
             cv::Point3f img_target= find_target(img_thresholded1, img_thresholded2);
 
-            curr_area = img_target.z;
+            curr_dist = img_target.z;
 
-            if (curr_area != -1)
+            if (curr_dist != -1)
             {
-                VERBOSETP("Target area: ",curr_area);
+                VERBOSETP("Targets' rel. distance: ",curr_dist);
                 iLastX = img_target.x;
                 iLastY = img_target.y;
                 Point2D new_ball_pos(iLastX,iLastY);
@@ -648,14 +650,14 @@ int main(void)
                 // usleep(240000);
                 // usleep((Walking::GetInstance()->PERIOD_TIME * 5)*1000);
 
-                if (curr_area >= 13000)
+                if (curr_dist >= past_finish_line_dist)
                 {
                     stop_running();
                     // move_backward();
                 }
 
 
-                // if (curr_area < 7000)
+                // if (curr_dist < 7000)
                 // {
                     
                 //     tracker.Process(new_ball_pos);
@@ -668,7 +670,7 @@ int main(void)
                 //     stop_running();
                 // }
             
-                // if (curr_area > 7200) //~50cm away, 30cm away is about 10,500 in pixel area
+                // if (curr_dist > 7200) //~50cm away, 30cm away is about 10,500 in pixel area
                 // {//closing in on object so tilt head downwards to focus
                 //     Point2D new_ball_pos(iLastX,iLastY);
                 //     Head::GetInstance()->MoveByAngleOffset(0,-1);
