@@ -77,6 +77,31 @@ static int hsv_values[12];
 static cv::Point POINT_A;
 static cv::Point POINT_B;
 
+int m_NoBallMaxCount = 10;
+int m_NoBallCount = m_NoBallMaxCount;
+int m_KickBallMaxCount = 10;
+int m_KickBallCount = 0;
+
+double m_MaxFBStep;
+double m_MaxRLStep;
+double m_MaxDirAngle;
+
+double m_KickTopAngle = -5.0;
+double m_KickRightAngle = -30.0;
+double m_KickLeftAngle = 30.0;
+
+double m_FollowMaxFBStep = 30.0;
+double m_FollowMinFBStep = 5.0;
+double m_FollowMaxRLTurn = 35.0;
+double m_FitFBStep = 3.0;
+double m_FitMaxRLTurn = 35.0;
+double m_UnitFBStep = 0.3;
+double m_UnitRLTurn = 1.0;
+
+double m_GoalFBStep = 0;
+double m_GoalRLTurn= 0;
+double m_FBStep= 0;
+double m_RLTurn= 0;
 
 
 
@@ -459,7 +484,129 @@ static void set_range_params(int d_x)
     }
 }
 
+void process(Point2D ball_pos)
+{
 
+    if(ball_pos.X == -1.0 || ball_pos.Y == -1.0)
+    {
+        if(m_NoBallCount > m_NoBallMaxCount)
+        {
+            // can not find a ball
+            m_GoalFBStep = 0;
+            m_GoalRLTurn = 0;
+            Head::GetInstance()->MoveToHome();
+    
+            VERBOSE("cannot find target");
+        }
+        else
+        {
+            m_NoBallCount++;
+            VERBOSE("[NO BALL COUNTING("<< m_NoBallCount<<"/"<<m_NoBallMaxCount<<")]");
+        }
+    }
+    else
+    {
+        m_NoBallCount = 0;
+
+        double pan = MotionStatus::m_CurrentJoints.GetAngle(JointData::ID_HEAD_PAN);
+        double pan_range = Head::GetInstance()->GetLeftLimitAngle();
+        double pan_percent = pan / pan_range;
+
+        double tilt = MotionStatus::m_CurrentJoints.GetAngle(JointData::ID_HEAD_TILT);
+        double tilt_min = Head::GetInstance()->GetBottomLimitAngle();       
+        double tilt_range = Head::GetInstance()->GetTopLimitAngle() - tilt_min;
+        double tilt_percent = (tilt - tilt_min) / tilt_range;
+        if(tilt_percent < 0)
+            tilt_percent = -tilt_percent;
+
+        if(pan > m_KickRightAngle && pan < m_KickLeftAngle)
+        {
+            if(tilt <= (tilt_min + MX28::RATIO_VALUE2ANGLE))
+            {
+                if(ball_pos.Y < m_KickTopAngle)
+                {
+                    m_GoalFBStep = 0;
+                    m_GoalRLTurn = 0;
+
+                    if(m_KickBallCount >= m_KickBallMaxCount)
+                    {
+                        m_FBStep = 0;
+                        m_RLTurn = 0;                       
+                        VERBOSE("[KICK]");
+                    }
+                }
+                else
+                {
+                    m_KickBallCount = 0;
+                    m_GoalFBStep = m_FitFBStep;
+                    m_GoalRLTurn = m_FitMaxRLTurn * pan_percent;
+                }
+            }
+            else
+            {
+                m_KickBallCount = 0;
+                KickBall = 0;
+                m_GoalFBStep = m_FollowMaxFBStep * tilt_percent;
+                if(m_GoalFBStep < m_FollowMinFBStep)
+                    m_GoalFBStep = m_FollowMinFBStep;
+                m_GoalRLTurn = m_FollowMaxRLTurn * pan_percent;
+            }
+        }
+        else
+        {
+            m_KickBallCount = 0;
+            KickBall = 0;
+            m_GoalFBStep = 0;
+            m_GoalRLTurn = m_FollowMaxRLTurn * pan_percent;
+            VERBOSE( "[FOLLOW(P:"<< pan << "T:" << tilt << ">" <<tilt_min<< "]" ); 
+        }       
+    }
+
+    if(m_GoalFBStep == 0 && m_GoalRLTurn == 0 && m_FBStep == 0 && m_RLTurn == 0)
+    {
+        if(Walking::GetInstance()->IsRunning() == true)
+            Walking::GetInstance()->Stop();
+        else
+        {
+            if(m_KickBallCount < m_KickBallMaxCount)
+                m_KickBallCount++;
+        }
+
+        VERBOSE(" STOP");
+    }
+    else
+    {
+        VERBOSE(" START");
+
+        if(Walking::GetInstance()->IsRunning() == false)
+        {
+            m_FBStep = 0;
+            m_RLTurn = 0;
+            m_KickBallCount = 0;
+            KickBall = 0;
+            Walking::GetInstance()->X_MOVE_AMPLITUDE = m_FBStep;
+            Walking::GetInstance()->A_MOVE_AMPLITUDE = m_RLTurn;
+            Walking::GetInstance()->Start();            
+        }
+        else
+        {
+            if(m_FBStep < m_GoalFBStep)
+                m_FBStep += m_UnitFBStep;
+            else if(m_FBStep > m_GoalFBStep)
+                m_FBStep = m_GoalFBStep;
+            Walking::GetInstance()->X_MOVE_AMPLITUDE = m_FBStep;
+
+            if(m_RLTurn < m_GoalRLTurn)
+                m_RLTurn += m_UnitRLTurn;
+            else if(m_RLTurn > m_GoalRLTurn)
+                m_RLTurn -= m_UnitRLTurn;
+            Walking::GetInstance()->A_MOVE_AMPLITUDE = m_RLTurn;
+
+            if(DEBUG_PRINT == true)
+                fprintf(stderr, " (FB:%.1f RL:%.1f)", m_FBStep, m_RLTurn);
+        }
+    }   
+}
 /*find  cosine of angle between two vectors from pt0->pt1 and from pt0->pt2 */
 // static double find_cosine( const cv::Point pt1, const cv::Point pt2, const cv::Point pt0 )
 // {
