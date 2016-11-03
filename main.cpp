@@ -140,12 +140,12 @@ static void start_running()
 {//update (x, y, a) move amplitude
     if( !Walking::GetInstance()->IsRunning() )
     {
-        VERBOSE("running...")
-        Walking::GetInstance()->PERIOD_TIME = 600;
+        // Walking::GetInstance()->PERIOD_TIME = 600;
         // Walking::GetInstance()->X_MOVE_AMPLITUDE += 10.0;
         // Walking::GetInstance()->Y_MOVE_AMPLITUDE = 1;
         // Walking::GetInstance()->Y_OFFSET = 0;
         Walking::GetInstance()->Start();
+        VERBOSE("running...")
     }
     
 }
@@ -223,6 +223,7 @@ static void move_backward() //happens once
     {
         stop_running();
         going_backwards = true;
+        start_running();
     }
 }
 
