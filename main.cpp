@@ -545,7 +545,6 @@ void process(Point2D ball_pos)
             else
             {
                 m_KickBallCount = 0;
-                KickBall = 0;
                 m_GoalFBStep = m_FollowMaxFBStep * tilt_percent;
                 if(m_GoalFBStep < m_FollowMinFBStep)
                     m_GoalFBStep = m_FollowMinFBStep;
@@ -555,7 +554,6 @@ void process(Point2D ball_pos)
         else
         {
             m_KickBallCount = 0;
-            KickBall = 0;
             m_GoalFBStep = 0;
             m_GoalRLTurn = m_FollowMaxRLTurn * pan_percent;
             VERBOSE( "[FOLLOW(P:"<< pan << "T:" << tilt << ">" <<tilt_min<< "]" ); 
@@ -583,7 +581,6 @@ void process(Point2D ball_pos)
             m_FBStep = 0;
             m_RLTurn = 0;
             m_KickBallCount = 0;
-            KickBall = 0;
             Walking::GetInstance()->X_MOVE_AMPLITUDE = m_FBStep;
             Walking::GetInstance()->A_MOVE_AMPLITUDE = m_RLTurn;
             Walking::GetInstance()->Start();            
@@ -602,8 +599,7 @@ void process(Point2D ball_pos)
                 m_RLTurn -= m_UnitRLTurn;
             Walking::GetInstance()->A_MOVE_AMPLITUDE = m_RLTurn;
 
-            if(DEBUG_PRINT == true)
-                fprintf(stderr, " (FB:%.1f RL:%.1f)", m_FBStep, m_RLTurn);
+            VERBOSE(" (FB:" << m_FBStep<< "RL:" <<m_RLTurn <<")" );
         }
     }   
 }
