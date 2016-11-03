@@ -794,7 +794,9 @@ int main(void)
                     #else
                     // increase_pace();
                     tracker.Process(new_ball_pos);
-                    follower.Process(tracker.ball_position);
+                    process(tracker.ball_position);
+
+                    // follower.Process(tracker.ball_position);
                     // start_running();
                     // usleep(240000);
                     // usleep((Walking::GetInstance()->PERIOD_TIME * 5)*1000);
