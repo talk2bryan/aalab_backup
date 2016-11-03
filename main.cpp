@@ -95,7 +95,7 @@ double m_FollowMinFBStep = 5.0;
 double m_FollowMaxRLTurn = 35.0;
 double m_FitFBStep = 3.0;
 double m_FitMaxRLTurn = 35.0;
-double m_UnitFBStep = 0.3;
+double m_UnitFBStep = 0.0;//0.3;
 double m_UnitRLTurn = 1.0;
 
 double m_GoalFBStep = 0;
@@ -217,18 +217,13 @@ static void adjust_gait()
     usleep(200000);
 }
 
-static void move_backward()
+static void move_backward() //happens once
 {
     if (! going_backwards)
     {
         stop_running();
-        Walking::GetInstance()->X_MOVE_AMPLITUDE=-10;
         going_backwards = true;
-        VERBOSETP("new X_MOVE_AMPLITUDE: ",Walking::GetInstance()->X_MOVE_AMPLITUDE);
-        start_running();
-        usleep(8*1000);        
     }
-     
 }
 
 static void scan_area()
@@ -591,6 +586,9 @@ void process(Point2D ball_pos)
                 m_FBStep += m_UnitFBStep;
             else if(m_FBStep > m_GoalFBStep)
                 m_FBStep = m_GoalFBStep;
+
+            if( going_backwards && 0 < m_FBStep)
+                m_FBStep = -m_FBStep;
             Walking::GetInstance()->X_MOVE_AMPLITUDE = m_FBStep;
 
             if(m_RLTurn < m_GoalRLTurn)
@@ -600,6 +598,7 @@ void process(Point2D ball_pos)
             Walking::GetInstance()->A_MOVE_AMPLITUDE = m_RLTurn;
 
             VERBOSE(" (FB:" << m_FBStep<< "RL:" <<m_RLTurn <<")" );
+            VERBOSE("going back? "<< going_backwards);
         }
     }   
 }
@@ -774,7 +773,7 @@ int main(void)
 
             curr_dist = img_target.z;
 
-            if (curr_dist != -1) //if !goiung_backwards
+            if (curr_dist != -1) //if !going_backwards
             {
                 VERBOSETP("Targets' rel. distance: ",curr_dist);
                 iLastX = img_target.x;
@@ -799,8 +798,8 @@ int main(void)
 
                     if (curr_dist >= past_finish_line_dist)
                     {
-                        stop_running();
-                        // move_backward();
+                        // stop_running();
+                        move_backward();
                     }
 
 
