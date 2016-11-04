@@ -100,7 +100,7 @@ double m_UnitRLTurn = 1.0;
 
 double m_GoalFBStep = 0;
 double m_GoalRLTurn= 0;
-double m_FBStep= 0;
+double m_FBStep= 10.0;
 double m_RLTurn= 0;
 
 
@@ -575,7 +575,7 @@ void process(Point2D ball_pos)
 
         if(Walking::GetInstance()->IsRunning() == false)
         {
-            m_FBStep = 0;
+            m_FBStep = 10.0;
             m_RLTurn = 0;
             m_KickBallCount = 0;
             Walking::GetInstance()->X_MOVE_AMPLITUDE = m_FBStep;
@@ -601,6 +601,7 @@ void process(Point2D ball_pos)
 
             VERBOSE(" (FB:" << m_FBStep<< "RL:" <<m_RLTurn <<")" );
             VERBOSE("going back? "<< going_backwards);
+            VERBOSE("m_FBStep: "<<m_FBStep);
         }
     }   
 }
