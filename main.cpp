@@ -63,7 +63,7 @@ static const int min_target_area = 100;
 static const int max_target_area = 33000; //these values are based on sampling the target area
 static const int max_target_not_found_count = 100;
 static const int max_target_found_count = 2;
-static const int past_finish_line_dist = 110;
+static const int past_finish_line_dist = 140;
 
 
 static const unsigned int num_vertices_square = 4;
@@ -77,10 +77,10 @@ static int hsv_values[12];
 static cv::Point POINT_A;
 static cv::Point POINT_B;
 
-int m_NoBallMaxCount = 10;
-int m_NoBallCount = m_NoBallMaxCount;
-int m_KickBallMaxCount = 10;
-int m_KickBallCount = 0;
+int m_NoTargetMaxCount = 10;
+int m_NoTargetCount = m_NoTargetMaxCount;
+int m_KickTargetMaxCount = 10;
+int m_KickTargetCount = 0;
 
 double m_MaxFBStep;
 double m_MaxRLStep;
@@ -486,7 +486,7 @@ void process(Point2D ball_pos)
 
     if(ball_pos.X == -1.0 || ball_pos.Y == -1.0)
     {
-        if(m_NoBallCount > m_NoBallMaxCount)
+        if(m_NoTargetCount > m_NoTargetMaxCount)
         {
             // can not find a ball
             m_GoalFBStep = 0;
@@ -497,13 +497,13 @@ void process(Point2D ball_pos)
         }
         else
         {
-            m_NoBallCount++;
-            VERBOSE("[NO BALL COUNTING("<< m_NoBallCount<<"/"<<m_NoBallMaxCount<<")]");
+            m_NoTargetCount++;
+            VERBOSE("[NO TARGET COUNTING("<< m_NoTargetCount<<"/"<<m_NoTargetMaxCount<<")]");
         }
     }
     else
     {
-        m_NoBallCount = 0;
+        m_NoTargetCount = 0;
 
         double pan = MotionStatus::m_CurrentJoints.GetAngle(JointData::ID_HEAD_PAN);
         double pan_range = Head::GetInstance()->GetLeftLimitAngle();
@@ -525,23 +525,22 @@ void process(Point2D ball_pos)
                     m_GoalFBStep = 0;
                     m_GoalRLTurn = 0;
 
-                    if(m_KickBallCount >= m_KickBallMaxCount)
+                    if(m_KickTargetCount >= m_KickTargetMaxCount)
                     {
                         m_FBStep = 0;
-                        m_RLTurn = 0;                       
-                        VERBOSE("[KICK]");
+                        m_RLTurn = 0;      
                     }
                 }
                 else
                 {
-                    m_KickBallCount = 0;
+                    m_KickTargetCount = 0;
                     m_GoalFBStep = m_FitFBStep;
                     m_GoalRLTurn = m_FitMaxRLTurn * pan_percent;
                 }
             }
             else
             {
-                m_KickBallCount = 0;
+                m_KickTargetCount = 0;
                 m_GoalFBStep = m_FollowMaxFBStep * tilt_percent;
                 if(m_GoalFBStep < m_FollowMinFBStep)
                     m_GoalFBStep = m_FollowMinFBStep;
@@ -550,7 +549,7 @@ void process(Point2D ball_pos)
         }
         else
         {
-            m_KickBallCount = 0;
+            m_KickTargetCount = 0;
             m_GoalFBStep = 0;
             m_GoalRLTurn = m_FollowMaxRLTurn * pan_percent;
             VERBOSE( "[FOLLOW(P:"<< pan << "T:" << tilt << ">" <<tilt_min<< "]" ); 
@@ -563,8 +562,8 @@ void process(Point2D ball_pos)
             Walking::GetInstance()->Stop();
         else
         {
-            if(m_KickBallCount < m_KickBallMaxCount)
-                m_KickBallCount++;
+            if(m_KickTargetCount < m_KickTargetMaxCount)
+                m_KickTargetCount++;
         }
 
         VERBOSE(" STOP");
@@ -577,7 +576,7 @@ void process(Point2D ball_pos)
         {
             m_FBStep = 10.0;
             m_RLTurn = 0;
-            m_KickBallCount = 0;
+            m_KickTargetCount = 0;
             Walking::GetInstance()->X_MOVE_AMPLITUDE = m_FBStep;
             Walking::GetInstance()->A_MOVE_AMPLITUDE = m_RLTurn;
             Walking::GetInstance()->Start();            
