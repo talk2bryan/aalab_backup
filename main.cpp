@@ -186,6 +186,7 @@ void stop_running()
         Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
         Walking::GetInstance()->Y_MOVE_AMPLITUDE = default_y_move_amp;
         Walking::GetInstance()->Stop();
+        usleep(2000000);
     }
 }
 static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
@@ -230,6 +231,7 @@ static void move_backward() //happens once
         going_backwards = true;
     	Walking::GetInstance()->HIP_PITCH_OFFSET = backward_hip_pitch;
         start_running();
+        usleep(5000000);
         VERBOSE("GOING BACK SET");
     }
 }
