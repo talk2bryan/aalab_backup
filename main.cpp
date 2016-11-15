@@ -54,6 +54,7 @@ static double default_a_move_amp;
 static double default_x_move_amp;
 static double default_y_move_amp;
 static double default_pelvis_offset;
+static double default_hip_pitch_offset;
 
 static const int canny_threshold = 100;
 static const int canny_ratio = 3;
@@ -67,6 +68,7 @@ static const int past_finish_line_dist = 140;
 
 
 static const unsigned int num_vertices_square = 4;
+static const double backward_hip_pitch = 13.7;
 static const double max_fb_step = 30.0;
 static const double max_tilt_top = 25;
 static const double max_tilt_bottom= -12;
@@ -95,7 +97,7 @@ double m_FollowMinFBStep = 5.0;
 double m_FollowMaxRLTurn = 35.0;
 double m_FitFBStep = 3.0;
 double m_FitMaxRLTurn = 35.0;
-double m_UnitFBStep = 0.0;//0.3;
+double m_UnitFBStep = 0.1;//0.3;
 double m_UnitRLTurn = 1.0;
 
 double m_GoalFBStep = 0;
@@ -157,6 +159,9 @@ static void restore_params()
     Walking::GetInstance()->Y_MOVE_AMPLITUDE = default_y_move_amp;
     Walking::GetInstance()->PERIOD_TIME = default_period_time;
     Walking::GetInstance()->PELVIS_OFFSET = default_pelvis_offset;
+    Walking::GetInstance()->HIP_PITCH_OFFSET = default_hip_pitch_offset;
+
+
     VERBOSE("restored params")
 }
 
@@ -221,9 +226,10 @@ static void move_backward() //happens once
 {
     if (! going_backwards)
     {
-        // stop_running();
+        stop_running();
         going_backwards = true;
-        // start_running();
+    	Walking::GetInstance()->HIP_PITCH_OFFSET = backward_hip_pitch;
+        start_running();
         VERBOSE("GOING BACK SET");
     }
 }
@@ -481,7 +487,7 @@ static void set_range_params(int d_x)
     }
 }
 
-void process(Point2D ball_pos)
+static void process(Point2D ball_pos)
 {
 
     if(ball_pos.X == -1.0 || ball_pos.Y == -1.0)
@@ -583,10 +589,16 @@ void process(Point2D ball_pos)
         }
         else
         {
-            if(m_FBStep < m_GoalFBStep)
-                m_FBStep += m_UnitFBStep;
-            else if(m_FBStep > m_GoalFBStep)
-                m_FBStep = m_GoalFBStep;
+            if(m_FBStep < m_GoalFBStep){
+            	if (going_backwards)
+            		m_FBStep += 0;
+            	else
+            		m_FBStep += m_UnitFBStep;
+            }
+            else if(m_FBStep > m_GoalFBStep){
+            	if(!going_backwards)
+            		m_FBStep = m_GoalFBStep;
+            }
 
             if( going_backwards && 0 < m_FBStep)
                 m_FBStep = -m_FBStep;
@@ -601,6 +613,7 @@ void process(Point2D ball_pos)
             VERBOSE(" (FB:" << m_FBStep<< "RL:" <<m_RLTurn <<")" );
             VERBOSE("going back? "<< going_backwards);
             VERBOSE("m_FBStep: "<<m_FBStep);
+            VERBOSE("HIP_PITCH_OFFSET: "<<Walking::GetInstance()->HIP_PITCH_OFFSET);
         }
     }   
 }
