@@ -102,7 +102,7 @@ double m_FollowMinFBStep = 5.0;
 double m_FollowMaxRLTurn = 35.0;
 double m_FitFBStep = 3.0;
 double m_FitMaxRLTurn = 35.0;
-double m_UnitFBStep = 0.1;//0.3;
+double m_UnitFBStep = 0.3;//0.3;
 double m_UnitRLTurn = 1.0;
 
 double m_GoalFBStep = 0;
@@ -234,20 +234,23 @@ static void move_backward() //happens once
     {
     	//state transition for each config:: STOP->CHANGE_CONFIG->DELAY->START
     	//motion transition:: WALK_ON_A_SPOT -> MOVE_BACK
-        stop_running();
-        Walking::GetInstance()->LoadINISettings(ini_still);//
-        Walking::GetInstance()->X_MOVE_AMPLITUDE = -5.0; //when standing still, FB_motion(mm) = -5.000
-        usleep(100);
-        start_running();
-        usleep(1000);
+        // stop_running();
 
-        //backward init
-        stop_running();
-        Walking::GetInstance()->LoadINISettings(ini_back);
+        // Walking::GetInstance()->LoadINISettings(ini_still);//
+        // Walking::GetInstance()->X_MOVE_AMPLITUDE = -5.0; //when standing still, FB_motion(mm) = -5.000
+        // usleep(100);
+        // start_running();
+        // usleep(1000);
+
+        // //backward init
+        // stop_running();
+        // Walking::GetInstance()->LoadINISettings(ini_back);
+        Walking::GetInstance()->X_MOVE_AMPLITUDE = 0;
+        usleep(100);
         going_backwards = true;
         VERBOSE("GOING BACK SET");
-        usleep(100);
-        start_running();
+        // usleep(100);
+        // start_running();
         // usleep(100000);
     	// Walking::GetInstance()->HIP_PITCH_OFFSET = backward_hip_pitch;
     	// usleep(1000000); == 1sec
@@ -419,7 +422,7 @@ static cv::Point3f find_target(cv::Mat& frame_a, cv::Mat& frame_b)
     static std::vector<std::vector<cv::Point> > contours; 
     static std::vector<cv::Point> approx_poly_points;
     static std::vector<cv::Point> ordered_points;
-    float shortest_path = 100000.0;
+    float shortest_path = 10.0;
 
   
     cv::Point3f point_and_dist = get_relative_distance_between_frame_coordinates(frame_a,frame_b);
@@ -427,10 +430,11 @@ static cv::Point3f find_target(cv::Mat& frame_a, cv::Mat& frame_b)
     if (point_and_dist.x != -1 && point_and_dist.y != -1 && point_and_dist.z != -1 )
     {
         float running_distance = point_and_dist.z;
-        printf("running_distance: %f\n", running_distance);
+        // printf("running_distance: %f\n", running_distance);
 
-        if ( running_distance >= 15 && running_distance <= 150) //calibrated value
+        if ( (running_distance >= 15 && running_distance <= 150) /*&& (abs(shortest_path - running_distance) <=20)*/ )//calibrated value
         {
+        	shortest_path = running_distance;
             target_centre = cv::Point3f(point_and_dist.x,point_and_dist.y, point_and_dist.z);//dummy - remove //(global_frame_a_array[i].size() * global_frame_b_array[i].size()));
             // printf("TARGET: {%d, %d}\n", point_and_dist.x,point_and_dist.y);
         }
@@ -455,6 +459,7 @@ static void set_range_params(int d_x)
 {
     VERBOSE("Setting the range for thresholding");
     VERBOSE("Press the ENTER key when finished!\n");
+
 
     Image* rgb_output = new Image(Camera::WIDTH, Camera::HEIGHT, Image::RGB_PIXEL_SIZE);
     
@@ -613,12 +618,14 @@ static void process(Point2D ball_pos)
         {
             if(m_FBStep < m_GoalFBStep){
             	if (going_backwards){
-            		m_FBStep += 0;
+            		m_FBStep += m_UnitFBStep;
             		VERBOSE("m_FBStep when Walking backward: " <<m_FBStep);
             		//-=m_unitFBStep * -1 or sth
             	}
             	else{
             		m_FBStep += m_UnitFBStep;
+            		if(m_FBStep > m_MaxFBStep)
+            			m_FBStep=m_MaxFBStep;
             		VERBOSE("m_FBStep when Walking forward: " <<m_FBStep);
             	}
             }
@@ -637,6 +644,9 @@ static void process(Point2D ball_pos)
                 m_RLTurn += m_UnitRLTurn;
             else if(m_RLTurn > m_GoalRLTurn)
                 m_RLTurn -= m_UnitRLTurn;
+
+            if(going_backwards)
+            	m_RLTurn = -m_RLTurn;
             Walking::GetInstance()->A_MOVE_AMPLITUDE = m_RLTurn;
 
             VERBOSE(" (FB:" << m_FBStep<< "RL:" <<m_RLTurn <<")" );
@@ -769,6 +779,25 @@ int main(void)
     printf("All set!\n");
     printf("Press the ENTER key to begin!\n");
     getchar();
+
+    // StatusCheck::Check(cm730);
+
+    // if(StatusCheck::m_is_started == 0)
+    // 	continue;
+    // switch(StatusCheck::m_is_started)
+    // {
+    // 	case READY:
+    // 		break;
+    // 	case MOTION:
+    //         break;
+    //     case VISION:
+    //         break;
+    //     case SOCCER:
+    //     	//put here
+    //     	break;
+
+    // }
+
    
     Head::GetInstance()->m_Joint.SetEnableHeadOnly(true, true);
     Walking::GetInstance()->m_Joint.SetEnableBodyWithoutHead(true, true);
@@ -781,7 +810,9 @@ int main(void)
     default_y_move_amp =  Walking::GetInstance()->Y_MOVE_AMPLITUDE;
     default_pelvis_offset = Walking::GetInstance()->PELVIS_OFFSET;
 
-    Head::GetInstance()->MoveByAngle(0,40); //keep head focused on target
+    
+    Head::GetInstance()->MoveByAngle(0,40); //keep heda focused on target
+
     
     //values for reporting the X and Y and area vals for found target
     float iLastX = -1; 
@@ -834,7 +865,7 @@ int main(void)
                 #else
                 // increase_pace();
                 tracker.Process(new_ball_pos);
-                process(tracker.ball_position);
+                // process(tracker.ball_position);
 
                 // follower.Process(tracker.ball_position);
                 // start_running();
