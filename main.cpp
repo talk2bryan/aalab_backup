@@ -34,11 +34,16 @@
 #define MOTION_FILE_PATH    "../../../Data/motion_4096.bin"
 #endif
 
-#define INI_FILE_PATH       "../../../Data/config.ini"
+#define INI_FILE_PATH       "config.ini"
+#define INI_BACK_PATH		"backward_config.ini"
+#define INI_STILL_PATH		"stand_still_config.ini"
+
 
 #define U2D_DEV_NAME        "/dev/ttyUSB0"
 
 
+minIni* ini_still;
+minIni* ini_back;
 
 static bool found_target = false;
 static bool going_backwards = false;
@@ -64,11 +69,11 @@ static const int min_target_area = 100;
 static const int max_target_area = 33000; //these values are based on sampling the target area
 static const int max_target_not_found_count = 100;
 static const int max_target_found_count = 2;
-static const int past_finish_line_dist = 140;
+static const int past_finish_line_dist = 120;
 
 
 static const unsigned int num_vertices_square = 4;
-static const double backward_hip_pitch = 13.7;
+static const double backward_hip_pitch = 11.5;
 static const double max_fb_step = 30.0;
 static const double max_tilt_top = 25;
 static const double max_tilt_bottom= -12;
@@ -102,7 +107,7 @@ double m_UnitRLTurn = 1.0;
 
 double m_GoalFBStep = 0;
 double m_GoalRLTurn= 0;
-double m_FBStep= 10.0;
+double m_FBStep= 20.0;
 double m_RLTurn= 0;
 
 
@@ -181,12 +186,12 @@ void stop_running()
 {
     if( Walking::GetInstance()->IsRunning() )
     {   
-        VERBOSE("stopped running")
-        Walking::GetInstance()->PERIOD_TIME = default_period_time;
-        Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
-        Walking::GetInstance()->Y_MOVE_AMPLITUDE = default_y_move_amp;
+        // Walking::GetInstance()->PERIOD_TIME = default_period_time;
+        // Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
+        // Walking::GetInstance()->Y_MOVE_AMPLITUDE = default_y_move_amp;
         Walking::GetInstance()->Stop();
-        usleep(2000000);
+        VERBOSE("stopped running")
+        // usleep(1000);
     }
 }
 static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
@@ -227,12 +232,25 @@ static void move_backward() //happens once
 {
     if (! going_backwards)
     {
+    	//state transition for each config:: STOP->CHANGE_CONFIG->DELAY->START
+    	//motion transition:: WALK_ON_A_SPOT -> MOVE_BACK
         stop_running();
-        going_backwards = true;
-    	Walking::GetInstance()->HIP_PITCH_OFFSET = backward_hip_pitch;
+        Walking::GetInstance()->LoadINISettings(ini_still);//
+        Walking::GetInstance()->X_MOVE_AMPLITUDE = -5.0; //when standing still, FB_motion(mm) = -5.000
+        usleep(100);
         start_running();
-        usleep(5000000);
+        usleep(1000);
+
+        //backward init
+        stop_running();
+        Walking::GetInstance()->LoadINISettings(ini_back);
+        going_backwards = true;
         VERBOSE("GOING BACK SET");
+        usleep(100);
+        start_running();
+        // usleep(100000);
+    	// Walking::GetInstance()->HIP_PITCH_OFFSET = backward_hip_pitch;
+    	// usleep(1000000); == 1sec
     }
 }
 
@@ -341,7 +359,7 @@ static cv::Point get_centre_of_frame(const cv::Mat& frame)
 
     frame_points = get_points_in_clockwise_order(frame);
 
-    if ( frame_points[0].x != 0 && frame_points[0].y != 0 ) //------------------causes seg fault 30% of the time-----//
+    if ( frame_points[0].x != 0 && frame_points[0].y != 0 )
     {
         sum_y = 0.0;
         sum_x = 0.0;
@@ -491,12 +509,12 @@ static void set_range_params(int d_x)
 
 static void process(Point2D ball_pos)
 {
-
+//Walking::GetInstance()->LoadINISettings(ini); ---- load walking config per state, sleep 1st
     if(ball_pos.X == -1.0 || ball_pos.Y == -1.0)
     {
         if(m_NoTargetCount > m_NoTargetMaxCount)
         {
-            // can not find a ball
+            // can not find a target
             m_GoalFBStep = 0;
             m_GoalRLTurn = 0;
             Head::GetInstance()->MoveToHome();
@@ -552,6 +570,8 @@ static void process(Point2D ball_pos)
                 m_GoalFBStep = m_FollowMaxFBStep * tilt_percent;
                 if(m_GoalFBStep < m_FollowMinFBStep)
                     m_GoalFBStep = m_FollowMinFBStep;
+                if(m_GoalFBStep > m_FollowMaxFBStep)
+                	m_GoalFBStep = m_FollowMaxFBStep;
                 m_GoalRLTurn = m_FollowMaxRLTurn * pan_percent;
             }
         }
@@ -581,7 +601,7 @@ static void process(Point2D ball_pos)
         VERBOSE(" START");
 
         if(Walking::GetInstance()->IsRunning() == false)
-        {
+        {//changed to test ini
             m_FBStep = 10.0;
             m_RLTurn = 0;
             m_KickTargetCount = 0;
@@ -592,10 +612,15 @@ static void process(Point2D ball_pos)
         else
         {
             if(m_FBStep < m_GoalFBStep){
-            	if (going_backwards)
+            	if (going_backwards){
             		m_FBStep += 0;
-            	else
+            		VERBOSE("m_FBStep when Walking backward: " <<m_FBStep);
+            		//-=m_unitFBStep * -1 or sth
+            	}
+            	else{
             		m_FBStep += m_UnitFBStep;
+            		VERBOSE("m_FBStep when Walking forward: " <<m_FBStep);
+            	}
             }
             else if(m_FBStep > m_GoalFBStep){
             	if(!going_backwards)
@@ -604,8 +629,10 @@ static void process(Point2D ball_pos)
 
             if( going_backwards && 0 < m_FBStep)
                 m_FBStep = -m_FBStep;
+            //changed to test ini
             Walking::GetInstance()->X_MOVE_AMPLITUDE = m_FBStep;
 
+            //TODO: do walk state check to adjust RL turn
             if(m_RLTurn < m_GoalRLTurn)
                 m_RLTurn += m_UnitRLTurn;
             else if(m_RLTurn > m_GoalRLTurn)
@@ -650,6 +677,9 @@ int main(void)
     change_current_dir();
 
     minIni* ini = new minIni(INI_FILE_PATH);
+   	ini_still = new minIni(INI_STILL_PATH);
+    ini_back = new minIni(INI_BACK_PATH);
+
     Image* rgb_output = new Image(Camera::WIDTH, Camera::HEIGHT, Image::RGB_PIXEL_SIZE);
 
     LinuxCamera::GetInstance()->Initialize(0);
