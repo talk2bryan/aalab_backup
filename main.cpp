@@ -74,10 +74,10 @@ static const int past_finish_line_dist = 120;
 
 static const unsigned int num_vertices_square = 4;
 static const double backward_hip_pitch = 11.5;
-static const double max_fb_step = 30.0;
-static const double max_tilt_top = 25;
+static const double max_fb_step =  19;//30.0;
+static const double max_tilt_top = 20;//25;
 static const double max_tilt_bottom= -12;
-static const double max_pan = 65;
+static const double max_pan = 30;//65;
 
 static int hsv_values[12];
 
@@ -245,8 +245,8 @@ static void move_backward() //happens once
         // //backward init
         // stop_running();
         // Walking::GetInstance()->LoadINISettings(ini_back);
-        Walking::GetInstance()->X_MOVE_AMPLITUDE = 0;
-        usleep(100);
+        // Walking::GetInstance()->X_MOVE_AMPLITUDE = 0;
+        // usleep(100);
         going_backwards = true;
         VERBOSE("GOING BACK SET");
         // usleep(100);
@@ -626,7 +626,8 @@ static void process(Point2D ball_pos)
             		m_FBStep += m_UnitFBStep;
             		if(m_FBStep > m_MaxFBStep)
             			m_FBStep=m_MaxFBStep;
-            		VERBOSE("m_FBStep when Walking forward: " <<m_FBStep);
+                    fprintf(stderr, "m_FBStep when Walking forward: %d\n",m_FBStep );
+            		// VERBOSE("m_FBStep when Walking forward: " <<m_FBStep);
             	}
             }
             else if(m_FBStep > m_GoalFBStep){
@@ -649,10 +650,11 @@ static void process(Point2D ball_pos)
             	m_RLTurn = -m_RLTurn;
             Walking::GetInstance()->A_MOVE_AMPLITUDE = m_RLTurn;
 
-            VERBOSE(" (FB:" << m_FBStep<< "RL:" <<m_RLTurn <<")" );
-            VERBOSE("going back? "<< going_backwards);
-            VERBOSE("m_FBStep: "<<m_FBStep);
-            VERBOSE("HIP_PITCH_OFFSET: "<<Walking::GetInstance()->HIP_PITCH_OFFSET);
+            // VERBOSE(" (FB:" << m_FBStep<< "RL:" <<m_RLTurn <<")" );
+            
+            // VERBOSE("going back? "<< going_backwards);
+            // VERBOSE("m_FBStep: "<<m_FBStep);
+            // VERBOSE("HIP_PITCH_OFFSET: "<<Walking::GetInstance()->HIP_PITCH_OFFSET);
         }
     }   
 }
@@ -865,7 +867,7 @@ int main(void)
                 #else
                 // increase_pace();
                 tracker.Process(new_ball_pos);
-                // process(tracker.ball_position);
+                process(tracker.ball_position);
 
                 // follower.Process(tracker.ball_position);
                 // start_running();
@@ -933,7 +935,7 @@ int main(void)
             else
             {
                 //target not found
-                VERBOSE("not finding target...");
+                fprintf(stderr, "not finding target...");
                 stop_running();
                 // scan_area();
                 //adjust_gait();
