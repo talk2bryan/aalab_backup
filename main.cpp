@@ -50,6 +50,7 @@ static bool going_backwards = false;
 
 static int target_not_found_count = 0;
 static int m_fb_step;
+static int running_distance = 15;
 
 static double m_head_tilt;
 static double m_head_pan;
@@ -89,7 +90,7 @@ int m_NoTargetCount = m_NoTargetMaxCount;
 int m_KickTargetMaxCount = 10;
 int m_KickTargetCount = 0;
 
-double m_MaxFBStep;
+double m_MaxFBStep = 19;
 double m_MaxRLStep;
 double m_MaxDirAngle;
 
@@ -107,7 +108,7 @@ double m_UnitRLTurn = 1.0;
 
 double m_GoalFBStep = 0;
 double m_GoalRLTurn= 0;
-double m_FBStep= 20.0;
+double m_FBStep= 0;
 double m_RLTurn= 0;
 
 
@@ -190,7 +191,7 @@ void stop_running()
         // Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
         // Walking::GetInstance()->Y_MOVE_AMPLITUDE = default_y_move_amp;
         Walking::GetInstance()->Stop();
-        VERBOSE("stopped running")
+        // VERBOSE("stopped running");
         // usleep(1000);
     }
 }
@@ -399,16 +400,19 @@ static cv::Point3f get_relative_distance_between_frame_coordinates(const cv::Mat
         center_B.x = muB.m10 / muB.m00;
         center_B.y = muB.m01 / muB.m00;
 
-        POINT_A = center_A;
-        POINT_B = center_B;
+        
 
         x = (center_A.x+center_B.x)/2;
         y = (center_A.y+center_B.y)/2;
 
-        // printf("A: {%d, %d}\t", POINT_A.x,POINT_A.y);
-        // printf("B: {%d, %d}\n", POINT_B.x,POINT_B.y);
-
-        result = cv::Point3f(x,y, get_2D_distance(POINT_A,POINT_B));
+        float curr_dist = get_2D_distance(center_A,center_B);
+        if ( 5 <= abs(running_distance - curr_dist) )
+        {
+            POINT_A = center_A;
+            POINT_B = center_B;
+            running_distance = curr_dist;
+            result = cv::Point3f(x,y, running_distance);
+        }
     }
 
     return result;
@@ -429,12 +433,12 @@ static cv::Point3f find_target(cv::Mat& frame_a, cv::Mat& frame_b)
 
     if (point_and_dist.x != -1 && point_and_dist.y != -1 && point_and_dist.z != -1 )
     {
-        float running_distance = point_and_dist.z;
-        // printf("running_distance: %f\n", running_distance);
+        float running_dist = point_and_dist.z;
+        // printf("running_dist: %f\n", running_dist);
 
-        if ( (running_distance >= 15 && running_distance <= 150) /*&& (abs(shortest_path - running_distance) <=20)*/ )//calibrated value
+        if ( (running_dist >= 15 && running_dist <= 150) /*&& (abs(shortest_path - running_dist) <=20)*/ )//calibrated value
         {
-        	shortest_path = running_distance;
+        	shortest_path = running_dist;
             target_centre = cv::Point3f(point_and_dist.x,point_and_dist.y, point_and_dist.z);//dummy - remove //(global_frame_a_array[i].size() * global_frame_b_array[i].size()));
             // printf("TARGET: {%d, %d}\n", point_and_dist.x,point_and_dist.y);
         }
@@ -453,6 +457,14 @@ static void initialize_hsv_array()
         else
             hsv_values[i] = 255;
     }
+
+    //default vals for thresholding
+    //pink
+    hsv_values[0] = 128;
+    hsv_values[2] = 100;
+    //green
+    hsv_values[3] = 141;
+    hsv_values[7] = 60;
 }
 
 static void set_range_params(int d_x)
@@ -585,7 +597,7 @@ static void process(Point2D ball_pos)
             m_KickTargetCount = 0;
             m_GoalFBStep = 0;
             m_GoalRLTurn = m_FollowMaxRLTurn * pan_percent;
-            VERBOSE( "[FOLLOW(P:"<< pan << "T:" << tilt << ">" <<tilt_min<< "]" ); 
+            // VERBOSE( "[FOLLOW(P:"<< pan << "T:" << tilt << ">" <<tilt_min<< "]" ); 
         }       
     }
 
@@ -599,11 +611,11 @@ static void process(Point2D ball_pos)
                 m_KickTargetCount++;
         }
 
-        VERBOSE(" STOP");
+        // VERBOSE(" STOP");
     }
     else
     {
-        VERBOSE(" START");
+        // VERBOSE(" START");
 
         if(Walking::GetInstance()->IsRunning() == false)
         {//changed to test ini
@@ -626,7 +638,8 @@ static void process(Point2D ball_pos)
             		m_FBStep += m_UnitFBStep;
             		if(m_FBStep > m_MaxFBStep)
             			m_FBStep=m_MaxFBStep;
-                    fprintf(stderr, "m_FBStep when Walking forward: %d\n",m_FBStep );
+                    // fprintf(stderr, "m_FBStep when Walking forward: %d\n",m_FBStep );
+                    fprintf(stderr, " m_FBStep when Walking forward: %d.",m_FBStep );
             		// VERBOSE("m_FBStep when Walking forward: " <<m_FBStep);
             	}
             }
@@ -651,7 +664,6 @@ static void process(Point2D ball_pos)
             Walking::GetInstance()->A_MOVE_AMPLITUDE = m_RLTurn;
 
             // VERBOSE(" (FB:" << m_FBStep<< "RL:" <<m_RLTurn <<")" );
-
             // VERBOSE("going back? "<< going_backwards);
             // VERBOSE("m_FBStep: "<<m_FBStep);
             // VERBOSE("HIP_PITCH_OFFSET: "<<Walking::GetInstance()->HIP_PITCH_OFFSET);
@@ -876,8 +888,8 @@ int main(void)
 
                 if (curr_dist >= past_finish_line_dist)
                 {
-                    // stop_running();
-                    move_backward();
+                    stop_running();
+                    // move_backward();
                 }
 
 
