@@ -405,8 +405,8 @@ static cv::Point3f get_relative_distance_between_frame_coordinates(const cv::Mat
         x = (center_A.x+center_B.x)/2;
         y = (center_A.y+center_B.y)/2;
 
-        printf("A: {%d, %d}\t", POINT_A.x,POINT_A.y);
-        printf("B: {%d, %d}\n", POINT_B.x,POINT_B.y);
+        // printf("A: {%d, %d}\t", POINT_A.x,POINT_A.y);
+        // printf("B: {%d, %d}\n", POINT_B.x,POINT_B.y);
 
         result = cv::Point3f(x,y, get_2D_distance(POINT_A,POINT_B));
     }
@@ -607,7 +607,7 @@ static void process(Point2D ball_pos)
 
         if(Walking::GetInstance()->IsRunning() == false)
         {//changed to test ini
-            m_FBStep = 10.0;
+            m_FBStep = 0;
             m_RLTurn = 0;
             m_KickTargetCount = 0;
             Walking::GetInstance()->X_MOVE_AMPLITUDE = m_FBStep;
@@ -619,7 +619,7 @@ static void process(Point2D ball_pos)
             if(m_FBStep < m_GoalFBStep){
             	if (going_backwards){
             		m_FBStep += m_UnitFBStep;
-            		VERBOSE("m_FBStep when Walking backward: " <<m_FBStep);
+            		//VERBOSE("m_FBStep when Walking backward: " <<m_FBStep);
             		//-=m_unitFBStep * -1 or sth
             	}
             	else{
@@ -651,7 +651,7 @@ static void process(Point2D ball_pos)
             Walking::GetInstance()->A_MOVE_AMPLITUDE = m_RLTurn;
 
             // VERBOSE(" (FB:" << m_FBStep<< "RL:" <<m_RLTurn <<")" );
-            
+
             // VERBOSE("going back? "<< going_backwards);
             // VERBOSE("m_FBStep: "<<m_FBStep);
             // VERBOSE("HIP_PITCH_OFFSET: "<<Walking::GetInstance()->HIP_PITCH_OFFSET);
@@ -935,8 +935,8 @@ int main(void)
             else
             {
                 //target not found
-                fprintf(stderr, "not finding target...");
-                stop_running();
+                fprintf(stderr, "target not found.");
+                // stop_running();
                 // scan_area();
                 //adjust_gait();
                 // usleep(200);
