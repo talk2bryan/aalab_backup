@@ -45,15 +45,10 @@
 minIni* ini_still;
 minIni* ini_back;
 
-static bool found_target = false;
+// static bool found_target = false;
 static bool going_backwards = false;
 
-static int target_not_found_count = 0;
-static int m_fb_step;
-static int running_distance = 15;
-
-static double m_head_tilt;
-static double m_head_pan;
+// static int target_not_found_count = 0;
 
 static double default_period_time;
 static double default_a_move_amp;
@@ -70,7 +65,7 @@ static const int min_target_area = 100;
 static const int max_target_area = 33000; //these values are based on sampling the target area
 static const int max_target_not_found_count = 100;
 static const int max_target_found_count = 2;
-static const int past_finish_line_dist = 120;
+static const int past_finish_line_dist = 140;
 
 
 static const unsigned int num_vertices_square = 4;
@@ -90,7 +85,7 @@ int m_NoTargetCount = m_NoTargetMaxCount;
 int m_KickTargetMaxCount = 10;
 int m_KickTargetCount = 0;
 
-double m_MaxFBStep = 19;
+double m_MaxFBStep = 12;
 double m_MaxRLStep;
 double m_MaxDirAngle;
 
@@ -98,18 +93,25 @@ double m_KickTopAngle = -5.0;
 double m_KickRightAngle = -30.0;
 double m_KickLeftAngle = 30.0;
 
-double m_FollowMaxFBStep = 30.0;
+double m_FollowMaxFBStep = 12;//30.0;
 double m_FollowMinFBStep = 5.0;
 double m_FollowMaxRLTurn = 35.0;
 double m_FitFBStep = 3.0;
 double m_FitMaxRLTurn = 35.0;
-double m_UnitFBStep = 0.3;//0.3;
+double m_UnitFBStep = 0.0;//0.3;
 double m_UnitRLTurn = 1.0;
 
 double m_GoalFBStep = 0;
 double m_GoalRLTurn= 0;
 double m_FBStep= 0;
 double m_RLTurn= 0;
+
+// //values for reporting the X and Y and area vals for found target
+// float iLastX = -1; 
+// float iLastY = -1;
+// int curr_dist;
+
+
 
 
 
@@ -129,21 +131,6 @@ void sighandler(int sig)
     exit(0);
 }
 
-
-//use step irection from tuner to pan head
-static void pan_left()
-{
-    VERBOSE("pan left...")
-    Head::GetInstance()->MoveByAngle(30,30);
-    Head::GetInstance()->MoveByAngle(0,30);
-}
-
-static void pan_right()
-{
-    VERBOSE("pan right...")
-    Head::GetInstance()->MoveByAngle(30,30);
-    Head::GetInstance()->MoveByAngle(60,30);
-}
 static void start_running()
 {//update (x, y, a) move amplitude
     if( !Walking::GetInstance()->IsRunning() )
@@ -186,13 +173,9 @@ void decrease_pace()
 void stop_running()
 {
     if( Walking::GetInstance()->IsRunning() )
-    {   
-        // Walking::GetInstance()->PERIOD_TIME = default_period_time;
-        // Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
-        // Walking::GetInstance()->Y_MOVE_AMPLITUDE = default_y_move_amp;
+    {
         Walking::GetInstance()->Stop();
         // VERBOSE("stopped running");
-        // usleep(1000);
     }
 }
 static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
@@ -202,189 +185,19 @@ static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
     return sqrt( (diffX * diffX) + (diffY * diffY) );
 }
 
-static void adjust_gait()
-{
-
-    // if((found_target == false) && target_not_found_count > 3)
-    // {
-    //     VERBOSE("adjust gait...");
-    //     // if( (target_not_found_count % 2) == 0)
-    //     // {
-    //     //     Head::GetInstance()->MoveToHome();
-    //     //     Head::GetInstance()->MoveByAngle(-30,30);
-    //     //     VERBOSE("pan left");
-    //     // }
-    //     // else
-    //     // {
-    //     //     Head::GetInstance()->MoveToHome();
-    //     //     Head::GetInstance()->MoveByAngle(30,30);
-    //     //     VERBOSE("pan right");
-    //     // }
-    // }
-    VERBOSE("adjusting gait...");
-    Walking::GetInstance()->A_MOVE_AMPLITUDE = 0.0; //direction
-    Walking::GetInstance()->X_MOVE_AMPLITUDE = 0.0; //forward/backward
-    Walking::GetInstance()->PERIOD_TIME = 600;
-    Walking::GetInstance()->Start();
-    usleep(200000);
-}
-
 static void move_backward() //happens once
 {
     if (! going_backwards)
     {
-    	//state transition for each config:: STOP->CHANGE_CONFIG->DELAY->START
-    	//motion transition:: WALK_ON_A_SPOT -> MOVE_BACK
-        // stop_running();
-
-        // Walking::GetInstance()->LoadINISettings(ini_still);//
-        // Walking::GetInstance()->X_MOVE_AMPLITUDE = -5.0; //when standing still, FB_motion(mm) = -5.000
-        // usleep(100);
-        // start_running();
-        // usleep(1000);
-
-        // //backward init
-        // stop_running();
-        // Walking::GetInstance()->LoadINISettings(ini_back);
-        // Walking::GetInstance()->X_MOVE_AMPLITUDE = 0;
-        // usleep(100);
         going_backwards = true;
         VERBOSE("GOING BACK SET");
-        // usleep(100);
-        // start_running();
-        // usleep(100000);
-    	// Walking::GetInstance()->HIP_PITCH_OFFSET = backward_hip_pitch;
-    	// usleep(1000000); == 1sec
     }
-}
-
-static void scan_area()
-{
-    if(! found_target)
-    {
-        
-        Walking::GetInstance()->A_MOVE_AMPLITUDE = 0.0; //look straght
-        Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
-
-        if (target_not_found_count < max_target_not_found_count)
-        {
-            Head::GetInstance()->MoveTracking();
-            VERBOSE("Head::GetInstance()->MoveTracking()")
-            target_not_found_count++;
-        }
-        else
-        {
-            Head::GetInstance()->InitTracking();
-        }
-    }
-    else
-    {
-        target_not_found_count = 0;
-    }
-}
-
-static std::vector<cv::Point> get_points_in_clockwise_order(const cv::Mat& frame)
-{
-    cv::Mat img_canny;
-    static std::vector<std::vector<cv::Point> > contours; 
-    static std::vector<cv::Point> approx_poly_points;
-    static std::vector<cv::Point> ordered_points;
-    static std::vector<cv::Vec4i> hierarchy;
-
-    // ordered_points[0] = cv::Point(-1,-1);
-
-    //canny, then check if it's a rectangle and check if a circle's in it
-    cv::Canny(frame,img_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
-    cv::findContours( img_canny, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
-
-    if (contours.size() > 0)
-    {
-        for (size_t i = 0; i < contours.size(); ++i)
-        {
-            // approximate contour with accuracy proportional
-            // to the contour perimeter
-            cv::approxPolyDP( cv::Mat(contours[i]), approx_poly_points, cv::arcLength(cv::Mat(contours[i]), true)*0.05 , true);
-            if ( (approx_poly_points.size() == num_vertices_square) 
-                && (fabs(cv::contourArea(cv::Mat(approx_poly_points))) > min_target_area)
-                && (cv::isContourConvex(approx_poly_points)) 
-                )
-            {   //points are either 
-                /*
-                a   d           OR     b   a
-                b   c //normal         c   d //abnormal
-                */
-                //if the slope between a and c is -ve, then we have the abnormal case
-                ordered_points = approx_poly_points;
-                if(approx_poly_points[0].x > approx_poly_points[2].x) //positive slope
-                {//shift all
-                    ordered_points[0] = approx_poly_points[1];
-                    ordered_points[1] = approx_poly_points[2];
-                    ordered_points[2] = approx_poly_points[3];
-                    ordered_points[3] = approx_poly_points[0];
-                }
-
-                #ifdef SHOWROI
-                cv::Mat rotated = cv::Mat(transformed_height_width,transformed_height_width,CV_8UC1); //this will contain our roi
-                cv::Point2f dst_vertices[4]; 
-                //in the order:
-                //top left, bottom left, bottom right, top right
-                dst_vertices[0] = cv::Point(0,0);
-                dst_vertices[1] = cv::Point(0,transformed_height_width-1);
-                dst_vertices[2] = cv::Point(transformed_height_width-1,transformed_height_width-1);
-                dst_vertices[3] = cv::Point(transformed_height_width-1,0);
-
-                cv::Point2f src_vertices[4];
-                src_vertices[0] = ordered_points[0];
-                src_vertices[1] = ordered_points[1];
-                src_vertices[2] = ordered_points[2];
-                src_vertices[3] = ordered_points[3];
-                
-                cv::Mat warpAffineMatrix = cv::getPerspectiveTransform(src_vertices,dst_vertices);
-
-                cv::Size warp_size(transformed_height_width,transformed_height_width);
-                cv::warpPerspective(frame,rotated,warpAffineMatrix,warp_size,cv::INTER_LINEAR,cv::BORDER_CONSTANT);
-
-                if(rotated.data)
-                {
-                    cv::imshow("rotated",rotated);
-                }
-                #endif
-            }
-        }
-    }
-    return ordered_points;
-}
-
-static cv::Point get_centre_of_frame(const cv::Mat& frame)
-{
-    std::vector<cv::Point> frame_points;
-    double sum_x, sum_y; //finding the x and y based on averaged vals
-    cv::Point result(-1,-1);
-
-    frame_points = get_points_in_clockwise_order(frame);
-
-    if ( frame_points[0].x != 0 && frame_points[0].y != 0 )
-    {
-        sum_y = 0.0;
-        sum_x = 0.0;
-        
-        for (int i = 0; i < num_vertices_square; ++i)
-        {
-            sum_x += frame_points.at(i).x;
-            sum_y += frame_points.at(i).y;
-        }
-        return cv::Point( (sum_x/num_vertices_square), (sum_y/num_vertices_square) );
-    }
-    return result;
 }
 
 static cv::Point3f get_relative_distance_between_frame_coordinates(const cv::Mat& frame_a, const cv::Mat& frame_b)
 {
     float x, y;
     cv::Point3f result(-1,-1,-1);
-
-    // cv::Point a( get_centre_of_frame(frame_a) );
-    // cv::Point b( get_centre_of_frame(frame_b) );
 
 
     if ( true )//(a.x != -1 && a.y != -1) && (b.x != -1 && b.y != -1) )
@@ -405,20 +218,20 @@ static cv::Point3f get_relative_distance_between_frame_coordinates(const cv::Mat
         x = (center_A.x+center_B.x)/2;
         y = (center_A.y+center_B.y)/2;
 
-        float curr_dist = get_2D_distance(center_A,center_B);
-        if ( 5 <= abs(running_distance - curr_dist) )
-        {
+        float curr_distance = get_2D_distance(center_A,center_B);
+        // VERBOSE("abs(running_distance - curr_dist): "<< (abs(running_distance - curr_distance)) );
+        // if ( true )//15 >= abs(running_distance - curr_distance) )
+        // {
             POINT_A = center_A;
             POINT_B = center_B;
-            running_distance = curr_dist;
-            result = cv::Point3f(x,y, running_distance);
-        }
+            result = cv::Point3f(x,y,curr_distance);
+        // }
     }
 
     return result;
 }
 
-static cv::Point3f find_target(cv::Mat& frame_a, cv::Mat& frame_b)
+static cv::Point3f find_target(const cv::Mat& frame_a,const cv::Mat& frame_b)
 {
     cv::Point3f target_centre(-1,-1,-1);
     cv::Mat img_canny,rotated;
@@ -466,6 +279,7 @@ static void initialize_hsv_array()
     hsv_values[3] = 141;
     hsv_values[7] = 60;
 }
+
 
 static void set_range_params(int d_x)
 {
@@ -524,10 +338,11 @@ static void set_range_params(int d_x)
     }
 }
 
+// walk to the target
 static void process(Point2D ball_pos)
 {
 //Walking::GetInstance()->LoadINISettings(ini); ---- load walking config per state, sleep 1st
-    if(ball_pos.X == -1.0 || ball_pos.Y == -1.0)
+    if(ball_pos.X == -1.0 || ball_pos.Y == -1.0) // no target
     {
         if(m_NoTargetCount > m_NoTargetMaxCount)
         {
@@ -556,6 +371,7 @@ static void process(Point2D ball_pos)
         double tilt_min = Head::GetInstance()->GetBottomLimitAngle();       
         double tilt_range = Head::GetInstance()->GetTopLimitAngle() - tilt_min;
         double tilt_percent = (tilt - tilt_min) / tilt_range;
+
         if(tilt_percent < 0)
             tilt_percent = -tilt_percent;
 
@@ -610,13 +426,9 @@ static void process(Point2D ball_pos)
             if(m_KickTargetCount < m_KickTargetMaxCount)
                 m_KickTargetCount++;
         }
-
-        // VERBOSE(" STOP");
     }
     else
     {
-        // VERBOSE(" START");
-
         if(Walking::GetInstance()->IsRunning() == false)
         {//changed to test ini
             m_FBStep = 0;
@@ -638,9 +450,6 @@ static void process(Point2D ball_pos)
             		m_FBStep += m_UnitFBStep;
             		if(m_FBStep > m_MaxFBStep)
             			m_FBStep=m_MaxFBStep;
-                    // fprintf(stderr, "m_FBStep when Walking forward: %d\n",m_FBStep );
-                    fprintf(stderr, " m_FBStep when Walking forward: %d.",m_FBStep );
-            		// VERBOSE("m_FBStep when Walking forward: " <<m_FBStep);
             	}
             }
             else if(m_FBStep > m_GoalFBStep){
@@ -651,7 +460,7 @@ static void process(Point2D ball_pos)
             if( going_backwards && 0 < m_FBStep)
                 m_FBStep = -m_FBStep;
             //changed to test ini
-            Walking::GetInstance()->X_MOVE_AMPLITUDE = m_FBStep;
+            Walking::GetInstance()->X_MOVE_AMPLITUDE = m_MaxFBStep; //m_FBStep;
 
             //TODO: do walk state check to adjust RL turn
             if(m_RLTurn < m_GoalRLTurn)
@@ -663,33 +472,10 @@ static void process(Point2D ball_pos)
             	m_RLTurn = -m_RLTurn;
             Walking::GetInstance()->A_MOVE_AMPLITUDE = m_RLTurn;
 
-            // VERBOSE(" (FB:" << m_FBStep<< "RL:" <<m_RLTurn <<")" );
-            // VERBOSE("going back? "<< going_backwards);
-            // VERBOSE("m_FBStep: "<<m_FBStep);
-            // VERBOSE("HIP_PITCH_OFFSET: "<<Walking::GetInstance()->HIP_PITCH_OFFSET);
+            VERBOSE(" (FB:" << m_FBStep<< "RL:" <<m_RLTurn <<")" );
         }
     }   
 }
-/*find  cosine of angle between two vectors from pt0->pt1 and from pt0->pt2 */
-// static double find_cosine( const cv::Point pt1, const cv::Point pt2, const cv::Point pt0 )
-// {
-//     double dx1 = pt1.x - pt0.x;
-//     double dy1 = pt1.y - pt0.y;
-//     double dx2 = pt2.x - pt0.x;
-//     double dy2 = pt2.y - pt0.y;
-//     return (dx1*dx2 + dy1*dy2)/sqrt((dx1*dx1 + dy1*dy1)*(dx2*dx2 + dy2*dy2) + 1e-10);
-// }
-
-// static double determine_angle(const cv::Point& point)
-// {
-//     return ( -atan2(point.x,-point.y) );
-// }
-
-// static bool compare_points(const cv::Point& a, const cv::Point& b)
-// {
-//     return ( (a.x) < (b.x) );
-//     // return ( determine_angle(a) < determine_angle(b) );
-// }
 
 int main(void)
 {
@@ -771,7 +557,8 @@ int main(void)
 
     //values for inRange thresholding    
     initialize_hsv_array();
-    set_range_params(0);
+
+    set_range_params(0); //calibrate the marker: ID 0 and 1
     set_range_params(1);
 
     #ifdef DEBUG
@@ -793,25 +580,6 @@ int main(void)
     printf("All set!\n");
     printf("Press the ENTER key to begin!\n");
     getchar();
-
-    // StatusCheck::Check(cm730);
-
-    // if(StatusCheck::m_is_started == 0)
-    // 	continue;
-    // switch(StatusCheck::m_is_started)
-    // {
-    // 	case READY:
-    // 		break;
-    // 	case MOTION:
-    //         break;
-    //     case VISION:
-    //         break;
-    //     case SOCCER:
-    //     	//put here
-    //     	break;
-
-    // }
-
    
     Head::GetInstance()->m_Joint.SetEnableHeadOnly(true, true);
     Walking::GetInstance()->m_Joint.SetEnableBodyWithoutHead(true, true);
@@ -824,18 +592,13 @@ int main(void)
     default_y_move_amp =  Walking::GetInstance()->Y_MOVE_AMPLITUDE;
     default_pelvis_offset = Walking::GetInstance()->PELVIS_OFFSET;
 
-    
-    Head::GetInstance()->MoveByAngle(0,40); //keep heda focused on target
-
-    
-    //values for reporting the X and Y and area vals for found target
-    float iLastX = -1; 
-    float iLastY = -1;
-    int curr_dist;
+    Walking::GetInstance()->PERIOD_TIME = 560; //initial pace when race starts
+    Head::GetInstance()->MoveByAngle(0,40); //keep head focused on target
 
     cv::Mat img_hsv, img_thresholded1, img_thresholded2;
     
-    //new logic here, run for 60 steps and run back -- may be cheaper
+    float iLastX = -1; 
+    float iLastY = -1;
 
     while( true )
     {
@@ -861,15 +624,16 @@ int main(void)
 
             // cv::dilate(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
 
-            cv::Point3f img_target= find_target(img_thresholded1, img_thresholded2);
+            cv::Point3f img_target= find_target(img_thresholded1, img_thresholded2); //find target based on two colours
 
-            curr_dist = img_target.z;
+            int curr_dist = img_target.z;
 
-            if (curr_dist != -1) //if !going_backwards
+            if (curr_dist != -1)  // the last dist value, default is -1
             {
+                    iLastX = img_target.x;
+                    iLastY = img_target.y;
+                
                 VERBOSETP("Targets' rel. distance: ",curr_dist);
-                iLastX = img_target.x;
-                iLastY = img_target.y;
                 Point2D new_ball_pos(iLastX,iLastY);
 
                 #ifdef BLIND_SPRINT
@@ -877,91 +641,35 @@ int main(void)
                 start_running();
                 usleep((Robot::Walking::GetInstance()->PERIOD_TIME * 10)*1000); //walk 10 steps
                 #else
-                // increase_pace();
+
                 tracker.Process(new_ball_pos);
-                process(tracker.ball_position);
+                follower.Process(tracker.ball_position);
+                // process(tracker.ball_position);
 
-                // follower.Process(tracker.ball_position);
-                // start_running();
-                // usleep(240000);
-                // usleep((Walking::GetInstance()->PERIOD_TIME * 5)*1000);
 
-                if (curr_dist >= past_finish_line_dist)
+                if (curr_dist > 70 && !going_backwards)
+                {
+                    Walking::GetInstance()->PERIOD_TIME = 750;
+                }
+                if (curr_dist >= past_finish_line_dist) //past the 1st finishing line
                 {
                     stop_running();
                     // move_backward();
                 }
 
-
-                // if (curr_dist < 7000)
-                // {
-                    
-                //     tracker.Process(new_ball_pos);
-                    // follower.Process(tracker.ball_position);
-                //     //start_running();
-                //     // usleep(2400000);
-                // }
-                // else
-                // {
-                //     stop_running();
-                // }
-            
-                // if (curr_dist > 7200) //~50cm away, 30cm away is about 10,500 in pixel area
-                // {//closing in on object so tilt head downwards to focus
-                //     Point2D new_ball_pos(iLastX,iLastY);
-                //     Head::GetInstance()->MoveByAngleOffset(0,-1);
-                //     // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;
-                //     tracker.Process(new_ball_pos);
-                //     follower.Process(tracker.ball_position);
-                //     // start_running();
-                //     usleep(240);
-                //     // stop_running();
-                //     // usleep((Robot::Walking::GetInstance()->PERIOD_TIME * 2)*1000);
-                //     // follower.Process(tracker.ball_position);
-                //     Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
-                //     Walking::GetInstance()->PERIOD_TIME = default_period_time;
-                //     // usleep(250); 
-                // }
-                // else
-                // {
-                //     //TODO - tweak period time to increase speed -----
-                //     // get centre of the target, x marks the spot
-                //     Point2D new_ball_pos(iLastX,iLastY);
-                //     //walk straight because target is far away
-                //     // Head::GetInstance()->MoveByAngle(0,30); //look straight
-                //     // Walking::GetInstance()->X_MOVE_AMPLITUDE = 1.0;// Walking::GetInstance()->STEP_FB_RATIO = 1.0
-                //     tracker.Process(new_ball_pos);
-                //     // follower.Process(tracker.ball_position);
-                //     // Walking::GetInstance()->PERIOD_TIME = 300;
-                //     // Walking::GetInstance()->X_MOVE_AMPLITUDE = 10.0;
-                //     follower.Process(tracker.ball_position);
-                //     // start_running();
-                //     usleep(240);
-                //     Walking::GetInstance()->PERIOD_TIME = default_period_time;
-                //     // stop_running();
-                //     // usleep(250); 
-                // }
+                #ifdef DEBUG
+                cv::circle(mat_frame,cv::Point(iLastX,iLastY),3,cv::Scalar(255,0,0));
+                cv::line(mat_frame,POINT_A,POINT_B,cv::Scalar(0,255,0),1,8);
                 #endif
-            
+                #endif
             }
-            else
+            else 
             {
                 //target not found
                 fprintf(stderr, "target not found.");
-                // stop_running();
-                // scan_area();
-                //adjust_gait();
-                // usleep(200);
-                // Walking::GetInstance()->PERIOD_TIME = default_period_time;
-                // Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
             }
             cv::imshow("Binary Image1",img_thresholded1);
             cv::imshow("Binary Image2",img_thresholded2);
-
-            #ifdef DEBUG
-            cv::circle(mat_frame,cv::Point(iLastX,iLastY),3,cv::Scalar(255,0,0));
-            cv::line(mat_frame,POINT_A,POINT_B,cv::Scalar(0,255,0),1,8);
-            #endif
             cv::imshow("Live feed", mat_frame);
             if(cv::waitKey(30) == 27) 
             {
