@@ -6,7 +6,6 @@
  *      ADAPTED from robotis tutorial {ball_following}
  *@purpose: sprint_two_colors FIRA2016. Using OPENCV 2.4.13
  */
-
 #include <stdio.h>
 #include <unistd.h>
 #include <limits.h>
@@ -35,154 +34,37 @@
 #endif
 
 #define INI_FILE_PATH       "config.ini"
-#define INI_BACK_PATH		"backward_config.ini"
-#define INI_STILL_PATH		"stand_still_config.ini"
+#define SCRIPT_FILE_PATH    "script.asc"
 
 
 #define U2D_DEV_NAME        "/dev/ttyUSB0"
 
 
-minIni* ini_still;
-minIni* ini_back;
+//variable definitions
 
-// static bool found_target = false;
-static bool going_backwards = false;
-
-// static int target_not_found_count = 0;
-
-static double default_period_time;
-static double default_a_move_amp;
-static double default_x_move_amp;
-static double default_y_move_amp;
-static double default_pelvis_offset;
-static double default_hip_pitch_offset;
-
-static const int canny_threshold = 100;
-static const int canny_ratio = 3;
-static const int canny_kernel_size = 3;
-static const int transformed_height_width = 200;
-static const int min_target_area = 100;
-static const int max_target_area = 33000; //these values are based on sampling the target area
-static const int max_target_not_found_count = 100;
-static const int max_target_found_count = 2;
-static const int past_finish_line_dist = 140;
-
-
-static const unsigned int num_vertices_square = 4;
-static const double backward_hip_pitch = 11.5;
-static const double max_fb_step =  19;//30.0;
-static const double max_tilt_top = 20;//25;
-static const double max_tilt_bottom= -12;
-static const double max_pan = 30;//65;
-
-static int hsv_values[12];
-
+//this contains the values used in thresholding the 
+//three images/colors: lowH1,lowH2,lowH3,lowS1,lowS2,lowS3,lowV1,lowV2,lowV3...etc
+// where 1, 2 and 3 represent each of the three colors
+static int hsv_values[18]; 
 static cv::Point POINT_A;
 static cv::Point POINT_B;
 
-int m_NoTargetMaxCount = 10;
-int m_NoTargetCount = m_NoTargetMaxCount;
-int m_KickTargetMaxCount = 10;
-int m_KickTargetCount = 0;
+//for image processing...
+static const int canny_threshold = 100;
+static const int canny_ratio = 3;
+static const int canny_kernel_size = 3;
 
-double m_MaxFBStep = 12;
-double m_MaxRLStep;
-double m_MaxDirAngle;
-
-double m_KickTopAngle = -5.0;
-double m_KickRightAngle = -30.0;
-double m_KickLeftAngle = 30.0;
-
-double m_FollowMaxFBStep = 12;//30.0;
-double m_FollowMinFBStep = 5.0;
-double m_FollowMaxRLTurn = 35.0;
-double m_FitFBStep = 3.0;
-double m_FitMaxRLTurn = 35.0;
-double m_UnitFBStep = 0.0;//0.3;
-double m_UnitRLTurn = 1.0;
-
-double m_GoalFBStep = 0;
-double m_GoalRLTurn= 0;
-double m_FBStep= 0;
-double m_RLTurn= 0;
-
-// //values for reporting the X and Y and area vals for found target
-// float iLastX = -1; 
-// float iLastY = -1;
-// int curr_dist;
+//flag for indicating direction & yellow patch tracing
+static bool going_backwards = false;
+static bool tracing_yellow = false;
 
 
 
-
-
-
-void change_current_dir()
+//returns the angle (in radians) between two vectors
+//for degrees: result * 180 / PI
+static float calculate_angle_between_points(const cv::Point& pt1, const cv::Point& pt2)
 {
-    char exepath[1024] = {0};
-    if(readlink("/proc/self/exe", exepath, sizeof(exepath)) != -1)
-    {
-        if(chdir(dirname(exepath)))
-            fprintf(stderr, "chdir error!! \n");
-    }
-}
-
-void sighandler(int sig)
-{
-    exit(0);
-}
-
-static void start_running()
-{//update (x, y, a) move amplitude
-    if( !Walking::GetInstance()->IsRunning() )
-    {
-        // Walking::GetInstance()->PERIOD_TIME = 600;
-        // Walking::GetInstance()->X_MOVE_AMPLITUDE += 10.0;
-        // Walking::GetInstance()->Y_MOVE_AMPLITUDE = 1;
-        // Walking::GetInstance()->Y_OFFSET = 0;
-        Walking::GetInstance()->Start();
-        VERBOSE("running...")
-    }
-    
-}
-
-static void restore_params()
-{
-    Walking::GetInstance()->A_MOVE_AMPLITUDE = default_a_move_amp;
-    Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
-    Walking::GetInstance()->Y_MOVE_AMPLITUDE = default_y_move_amp;
-    Walking::GetInstance()->PERIOD_TIME = default_period_time;
-    Walking::GetInstance()->PELVIS_OFFSET = default_pelvis_offset;
-    Walking::GetInstance()->HIP_PITCH_OFFSET = default_hip_pitch_offset;
-
-
-    VERBOSE("restored params")
-}
-
-void increase_pace()
-{
-    // Walking::GetInstance()->PERIOD_TIME = 300;
-    Walking::GetInstance()->X_MOVE_AMPLITUDE += 10.0;
-}
-
-void decrease_pace()
-{
-    Walking::GetInstance()->PERIOD_TIME = default_period_time;
-    Walking::GetInstance()->X_MOVE_AMPLITUDE = default_x_move_amp;
-}
-
-void stop_running()
-{
-    if( Walking::GetInstance()->IsRunning() )
-    {
-        Walking::GetInstance()->Stop();
-        // VERBOSE("stopped running");
-    }
-}
-static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
-{//based on the Euclidean plane
-    float diffX = pt1.x - pt2.x;
-    float diffY = pt1.y - pt2.y;
-    return sqrt( (diffX * diffX) + (diffY * diffY) );
+    return atan2( pt1.y - pt2.y, pt1.x - pt2.x );
 }
 
 static void move_backward() //happens once
@@ -190,97 +72,128 @@ static void move_backward() //happens once
     if (! going_backwards)
     {
         going_backwards = true;
+        tracing_yellow = false;
         VERBOSE("GOING BACK SET");
+        Walking::GetInstance()->PERIOD_TIME = 800;
+        Walking::GetInstance()->X_MOVE_AMPLITUDE = -9;
+        usleep( ((Walking::GetInstance()->PERIOD_TIME * 7) ) * 1000);
     }
 }
 
-static cv::Point3f get_relative_distance_between_frame_coordinates(const cv::Mat& frame_a, const cv::Mat& frame_b)
+//param: binary of yellow thrshold
+//return: 3-point float containing (x,y,area of patch)
+//returns (-1,-1,-1) if target not found
+static cv::Point3f trace_yellow_patch(const cv::Mat& frame)
 {
+    
     float x, y;
-    cv::Point3f result(-1,-1,-1);
 
+    cv::Moments muA = cv::moments(frame, true);
+    
+    x = muA.m10 / muA.m00;
+    y = muA.m01 / muA.m00;
 
-    if ( true )//(a.x != -1 && a.y != -1) && (b.x != -1 && b.y != -1) )
-    {
-        cv::Moments muA = cv::moments(frame_a, true);
-        cv::Moments muB = cv::moments(frame_b, true);
-
-        cv::Point center_A, center_B;
-        
-        center_A.x = muA.m10 / muA.m00;
-        center_A.y = muA.m01 / muA.m00;
-
-        center_B.x = muB.m10 / muB.m00;
-        center_B.y = muB.m01 / muB.m00;
-
-        
-
-        x = (center_A.x+center_B.x)/2;
-        y = (center_A.y+center_B.y)/2;
-
-        float curr_distance = get_2D_distance(center_A,center_B);
-        // VERBOSE("abs(running_distance - curr_dist): "<< (abs(running_distance - curr_distance)) );
-        // if ( true )//15 >= abs(running_distance - curr_distance) )
-        // {
-            POINT_A = center_A;
-            POINT_B = center_B;
-            result = cv::Point3f(x,y,curr_distance);
-        // }
-    }
-
+    cv::Point3f result(x,y,muA.m00);
     return result;
 }
 
+
+//return 2D distance between two points
+static float get_2D_distance(const cv::Point& pt1, const cv::Point& pt2)
+{//based on the Euclidean plane
+    float diffX = pt1.x - pt2.x;
+    float diffY = pt1.y - pt2.y;
+    return sqrt( (diffX * diffX) + (diffY * diffY) );
+}
+
+//used by main to find target
+//params: two diff binary frames
+//return: 3-point float containing (x,y,dist. btw x&y).
+//returns (-1,-1,-1) if target not found
 static cv::Point3f find_target(const cv::Mat& frame_a,const cv::Mat& frame_b)
 {
     cv::Point3f target_centre(-1,-1,-1);
-    cv::Mat img_canny,rotated;
+    float x, y;
 
-    static std::vector<std::vector<cv::Point> > contours; 
-    static std::vector<cv::Point> approx_poly_points;
-    static std::vector<cv::Point> ordered_points;
-    float shortest_path = 10.0;
 
-  
-    cv::Point3f point_and_dist = get_relative_distance_between_frame_coordinates(frame_a,frame_b);
+    cv::Moments muA = cv::moments(frame_a, true);
+    cv::Moments muB = cv::moments(frame_b, true);
 
-    if (point_and_dist.x != -1 && point_and_dist.y != -1 && point_and_dist.z != -1 )
+    cv::Point center_A, center_B;
+    
+    center_A.x = muA.m10 / muA.m00;
+    center_A.y = muA.m01 / muA.m00;
+
+    center_B.x = muB.m10 / muB.m00;
+    center_B.y = muB.m01 / muB.m00;
+
+    POINT_A = center_A;
+    POINT_B = center_B;
+    float angle = calculate_angle_between_points(center_A,center_B);
+
+
+    VERBOSE("angle: " << angle );
+
+    x = (center_A.x+center_B.x)/2;
+    y = (center_A.y+center_B.y)/2;
+
+    float curr_distance = get_2D_distance(center_A,center_B);
+
+    //filter to ensure the right objects are being picked up based on caliberated distances
+    //between the images, looking at target from start line and at finish line.
+    if ( (curr_distance >= 15 && curr_distance <= 150)
+        &&  (-0.6 <= angle && angle <= 0.06)/*&& (abs(shortest_path - curr_distance) <=20)*/ )//calibrated value
     {
-        float running_dist = point_and_dist.z;
-        // printf("running_dist: %f\n", running_dist);
-
-        if ( (running_dist >= 15 && running_dist <= 150) /*&& (abs(shortest_path - running_dist) <=20)*/ )//calibrated value
-        {
-        	shortest_path = running_dist;
-            target_centre = cv::Point3f(point_and_dist.x,point_and_dist.y, point_and_dist.z);//dummy - remove //(global_frame_a_array[i].size() * global_frame_b_array[i].size()));
-            // printf("TARGET: {%d, %d}\n", point_and_dist.x,point_and_dist.y);
-        }
+        target_centre = cv::Point3f(x,y, curr_distance);
     }
+    
     return target_centre;
 }
 
+
+//sets the range values for the HSV
+//based on openCV documentation
 static void initialize_hsv_array()
 {
-    for(int i = 0; i<12;i++)
+    for(int i = 0; i<18;i++)
     {
-        if(i <= 5)
+        if(i <= 8)
             hsv_values[i] = 0;
-        else if(i >5 && i <8)
+        else if(i >8 && i <12)
             hsv_values[i] = 179;
         else
             hsv_values[i] = 255;
     }
 
     //default vals for thresholding
-    //pink
-    hsv_values[0] = 128;
-    hsv_values[2] = 100;
-    //green
-    hsv_values[3] = 141;
-    hsv_values[7] = 60;
+    //assuming you set the thresh vals in the order: yellow, pink
+    //before green... 
+
+    //yellow patch
+    hsv_values[3] = 116;//lowS
+    hsv_values[12] = 227; //highS
+    hsv_values[9] = 34; //highH
+    hsv_values[6] = 155; //lowV
+
+    //pink paper
+    hsv_values[1] = 132; //lowH
+    // hsv_values[2] = 100;
+    // //green paper
+    hsv_values[2] = 26; //lowH
+    hsv_values[5] = 200; //lowS
+    hsv_values[11] = 57; //highH
 }
 
+//before the race starts, you want to calibrate the vals for 
+//all 3 colors. this receives d_x which is an offset (0, 1 oo 2)
+//that sets the thresh vals for the corresponding color
+//0 -- means, set HSV vals for 1st color
+//1 -- set HSV vals for the 2nd color
+//2 -- set HSV vals for the 3rd color
 
+//i assume yellow is set 1st as the head is tilted only for the first time
+//in the main, just call this method 3ice with 0, 1 and 2
+//to set the thresh vals for all 3 colors
 static void set_range_params(int d_x)
 {
     VERBOSE("Setting the range for thresholding");
@@ -295,13 +208,13 @@ static void set_range_params(int d_x)
 
 
     cvCreateTrackbar("LowH", "Colour Control", &hsv_values[d_x], 179);
-    cvCreateTrackbar("HighH", "Colour Control", &hsv_values[d_x+6], 179);
+    cvCreateTrackbar("HighH", "Colour Control", &hsv_values[d_x+9], 179);
 
-    cvCreateTrackbar("LowS", "Colour Control", &hsv_values[d_x+2], 255);
-    cvCreateTrackbar("HighS", "Colour Control", &hsv_values[d_x+8], 255);
+    cvCreateTrackbar("LowS", "Colour Control", &hsv_values[d_x+3], 255);
+    cvCreateTrackbar("HighS", "Colour Control", &hsv_values[d_x+12], 255);
 
-    cvCreateTrackbar("LowV", "Colour Control", &hsv_values[d_x+4], 255);
-    cvCreateTrackbar("HighV", "Colour Control", &hsv_values[d_x+10], 255);
+    cvCreateTrackbar("LowV", "Colour Control", &hsv_values[d_x+6], 255);
+    cvCreateTrackbar("HighV", "Colour Control", &hsv_values[d_x+15], 255);
 
     while( true )
     {
@@ -319,11 +232,15 @@ static void set_range_params(int d_x)
 
             curr_thresholded = cv::Mat(curr_frame.size(),CV_8UC1);
             
-            cv::inRange(curr_hsv,cv::Scalar(hsv_values[d_x],hsv_values[d_x+2],hsv_values[d_x+4]),cv::Scalar(hsv_values[d_x+6],hsv_values[d_x+8],hsv_values[d_x+10]),curr_thresholded);
-            // cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(9,9),2,2);
+            cv::inRange(curr_hsv,cv::Scalar(hsv_values[d_x],hsv_values[d_x+3],hsv_values[d_x+6]),cv::Scalar(hsv_values[d_x+9],hsv_values[d_x+12],hsv_values[d_x+15]),curr_thresholded);
             cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
             cv::Canny(curr_thresholded,curr_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
-            // cv::dilate(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+        }
+        //report area just for calibrating yellow
+        if ( d_x == 0)
+        {
+            cv::Moments muA = cv::moments(curr_thresholded, true);
+            VERBOSE(muA.m00);
         }
         
         // cv::imshow("Canny Image",curr_canny);
@@ -338,148 +255,24 @@ static void set_range_params(int d_x)
     }
 }
 
-// walk to the target
-static void process(Point2D ball_pos)
+void change_current_dir()
 {
-//Walking::GetInstance()->LoadINISettings(ini); ---- load walking config per state, sleep 1st
-    if(ball_pos.X == -1.0 || ball_pos.Y == -1.0) // no target
+    char exepath[1024] = {0};
+    if(readlink("/proc/self/exe", exepath, sizeof(exepath)) != -1)
     {
-        if(m_NoTargetCount > m_NoTargetMaxCount)
-        {
-            // can not find a target
-            m_GoalFBStep = 0;
-            m_GoalRLTurn = 0;
-            Head::GetInstance()->MoveToHome();
-    
-            VERBOSE("cannot find target");
-        }
-        else
-        {
-            m_NoTargetCount++;
-            VERBOSE("[NO TARGET COUNTING("<< m_NoTargetCount<<"/"<<m_NoTargetMaxCount<<")]");
-        }
+        if(chdir(dirname(exepath)))
+            fprintf(stderr, "chdir error!! \n");
     }
-    else
-    {
-        m_NoTargetCount = 0;
+}
 
-        double pan = MotionStatus::m_CurrentJoints.GetAngle(JointData::ID_HEAD_PAN);
-        double pan_range = Head::GetInstance()->GetLeftLimitAngle();
-        double pan_percent = pan / pan_range;
-
-        double tilt = MotionStatus::m_CurrentJoints.GetAngle(JointData::ID_HEAD_TILT);
-        double tilt_min = Head::GetInstance()->GetBottomLimitAngle();       
-        double tilt_range = Head::GetInstance()->GetTopLimitAngle() - tilt_min;
-        double tilt_percent = (tilt - tilt_min) / tilt_range;
-
-        if(tilt_percent < 0)
-            tilt_percent = -tilt_percent;
-
-        if(pan > m_KickRightAngle && pan < m_KickLeftAngle)
-        {
-            if(tilt <= (tilt_min + MX28::RATIO_VALUE2ANGLE))
-            {
-                if(ball_pos.Y < m_KickTopAngle)
-                {
-                    m_GoalFBStep = 0;
-                    m_GoalRLTurn = 0;
-
-                    if(m_KickTargetCount >= m_KickTargetMaxCount)
-                    {
-                        m_FBStep = 0;
-                        m_RLTurn = 0;      
-                    }
-                }
-                else
-                {
-                    m_KickTargetCount = 0;
-                    m_GoalFBStep = m_FitFBStep;
-                    m_GoalRLTurn = m_FitMaxRLTurn * pan_percent;
-                }
-            }
-            else
-            {
-                m_KickTargetCount = 0;
-                m_GoalFBStep = m_FollowMaxFBStep * tilt_percent;
-                if(m_GoalFBStep < m_FollowMinFBStep)
-                    m_GoalFBStep = m_FollowMinFBStep;
-                if(m_GoalFBStep > m_FollowMaxFBStep)
-                	m_GoalFBStep = m_FollowMaxFBStep;
-                m_GoalRLTurn = m_FollowMaxRLTurn * pan_percent;
-            }
-        }
-        else
-        {
-            m_KickTargetCount = 0;
-            m_GoalFBStep = 0;
-            m_GoalRLTurn = m_FollowMaxRLTurn * pan_percent;
-            // VERBOSE( "[FOLLOW(P:"<< pan << "T:" << tilt << ">" <<tilt_min<< "]" ); 
-        }       
-    }
-
-    if(m_GoalFBStep == 0 && m_GoalRLTurn == 0 && m_FBStep == 0 && m_RLTurn == 0)
-    {
-        if(Walking::GetInstance()->IsRunning() == true)
-            Walking::GetInstance()->Stop();
-        else
-        {
-            if(m_KickTargetCount < m_KickTargetMaxCount)
-                m_KickTargetCount++;
-        }
-    }
-    else
-    {
-        if(Walking::GetInstance()->IsRunning() == false)
-        {//changed to test ini
-            m_FBStep = 0;
-            m_RLTurn = 0;
-            m_KickTargetCount = 0;
-            Walking::GetInstance()->X_MOVE_AMPLITUDE = m_FBStep;
-            Walking::GetInstance()->A_MOVE_AMPLITUDE = m_RLTurn;
-            Walking::GetInstance()->Start();            
-        }
-        else
-        {
-            if(m_FBStep < m_GoalFBStep){
-            	if (going_backwards){
-            		m_FBStep += m_UnitFBStep;
-            		//VERBOSE("m_FBStep when Walking backward: " <<m_FBStep);
-            		//-=m_unitFBStep * -1 or sth
-            	}
-            	else{
-            		m_FBStep += m_UnitFBStep;
-            		if(m_FBStep > m_MaxFBStep)
-            			m_FBStep=m_MaxFBStep;
-            	}
-            }
-            else if(m_FBStep > m_GoalFBStep){
-            	if(!going_backwards)
-            		m_FBStep = m_GoalFBStep;
-            }
-
-            if( going_backwards && 0 < m_FBStep)
-                m_FBStep = -m_FBStep;
-            //changed to test ini
-            Walking::GetInstance()->X_MOVE_AMPLITUDE = m_MaxFBStep; //m_FBStep;
-
-            //TODO: do walk state check to adjust RL turn
-            if(m_RLTurn < m_GoalRLTurn)
-                m_RLTurn += m_UnitRLTurn;
-            else if(m_RLTurn > m_GoalRLTurn)
-                m_RLTurn -= m_UnitRLTurn;
-
-            if(going_backwards)
-            	m_RLTurn = -m_RLTurn;
-            Walking::GetInstance()->A_MOVE_AMPLITUDE = m_RLTurn;
-
-            VERBOSE(" (FB:" << m_FBStep<< "RL:" <<m_RLTurn <<")" );
-        }
-    }   
+void sighandler(int sig)
+{
+    exit(0);
 }
 
 int main(void)
 {
-	signal(SIGABRT, &sighandler);
+    signal(SIGABRT, &sighandler);
     signal(SIGTERM, &sighandler);
     signal(SIGQUIT, &sighandler);
     signal(SIGINT, &sighandler);
@@ -487,20 +280,12 @@ int main(void)
     change_current_dir();
 
     minIni* ini = new minIni(INI_FILE_PATH);
-   	ini_still = new minIni(INI_STILL_PATH);
-    ini_back = new minIni(INI_BACK_PATH);
 
     Image* rgb_output = new Image(Camera::WIDTH, Camera::HEIGHT, Image::RGB_PIXEL_SIZE);
 
     LinuxCamera::GetInstance()->Initialize(0);
     LinuxCamera::GetInstance()->SetCameraSettings(CameraSettings());    // set default
     LinuxCamera::GetInstance()->LoadINISettings(ini);                   // load from ini
-
-    // mjpg_streamer* streamer = new mjpg_streamer(Camera::WIDTH, Camera::HEIGHT);
-
-    ColorFinder* ball_finder = new ColorFinder();
-    ball_finder->LoadINISettings(ini);
-    httpd::ball_finder = ball_finder;
 
     BallTracker tracker = BallTracker();
     BallFollower follower = BallFollower();
@@ -520,15 +305,17 @@ int main(void)
         #endif
         return 0;
     }
-    MotionManager::GetInstance()->LoadINISettings(ini);
     Walking::GetInstance()->LoadINISettings(ini);
 
+    MotionManager::GetInstance()->AddModule((MotionModule*)Action::GetInstance());
     MotionManager::GetInstance()->AddModule((MotionModule*)Head::GetInstance());
     MotionManager::GetInstance()->AddModule((MotionModule*)Walking::GetInstance());
 
     LinuxMotionTimer *motion_timer = new LinuxMotionTimer(MotionManager::GetInstance());
     motion_timer->Start();
     /////////////////////////////////////////////////////////////////////
+    MotionManager::GetInstance()->LoadINISettings(ini);
+
     
     int n = 0;
     int param[JointData::NUMBER_OF_JOINTS * 5];
@@ -555,129 +342,192 @@ int main(void)
     }
     cm730.SyncWrite(MX28::P_GOAL_POSITION_L, 5, JointData::NUMBER_OF_JOINTS - 1, param);
 
-    //values for inRange thresholding    
-    initialize_hsv_array();
 
-    set_range_params(0); //calibrate the marker: ID 0 and 1
-    set_range_params(1);
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
+    //stand up and stage for thresholding and running 
+    LinuxActionScript::PlayMP3("../../../Data/mp3/Demonstration ready mode.mp3");
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    #ifdef DEBUG
-    VERBOSETP("iLowH1: ",hsv_values[0]);
-    VERBOSETP("iHighH1: ",hsv_values[6]);
-    VERBOSETP("iLowS1: ",hsv_values[2]);
-    VERBOSETP("iHighS1: ",hsv_values[8]);
-    VERBOSETP("iLowV1: ",hsv_values[4]);
-    VERBOSETP("iHighV1: ",hsv_values[10]);
-    printf("\n");
-    VERBOSETP("iLowH2: ",hsv_values[1]);
-    VERBOSETP("iHighH2: ",hsv_values[7]);
-    VERBOSETP("iLowS2: ",hsv_values[3]);
-    VERBOSETP("iHighS2: ",hsv_values[9]);
-    VERBOSETP("iLowV2: ",hsv_values[5]);
-    VERBOSETP("iHighV2: ",hsv_values[11]);
-    #endif
-    
-    printf("All set!\n");
-    printf("Press the ENTER key to begin!\n");
+    VERBOSE("hit ENTER to begin: ")
     getchar();
-   
+
     Head::GetInstance()->m_Joint.SetEnableHeadOnly(true, true);
     Walking::GetInstance()->m_Joint.SetEnableBodyWithoutHead(true, true);
     MotionManager::GetInstance()->SetEnable(true);
     Walking::GetInstance()->STEP_FB_RATIO = 1.0;
-
-    default_period_time = Walking::GetInstance()->PERIOD_TIME;
-    default_a_move_amp =  Walking::GetInstance()->A_MOVE_AMPLITUDE;
-    default_x_move_amp =  Walking::GetInstance()->X_MOVE_AMPLITUDE;
-    default_y_move_amp =  Walking::GetInstance()->Y_MOVE_AMPLITUDE;
-    default_pelvis_offset = Walking::GetInstance()->PELVIS_OFFSET;
-
-    Walking::GetInstance()->PERIOD_TIME = 560; //initial pace when race starts
-    Head::GetInstance()->MoveByAngle(0,40); //keep head focused on target
-
-    cv::Mat img_hsv, img_thresholded1, img_thresholded2;
     
+    
+
+    initialize_hsv_array(); //set range for thresholding 
+    
+    //now calibrate the 3 colors. see method def
+    Head::GetInstance()->MoveByAngle(0,0); //tilt head to thresh yellow
+    set_range_params(0);
+
+    Head::GetInstance()->MoveByAngle(0,50);//look back up
+    set_range_params(1);//pink
+    set_range_params(2);//green  -- the order of these two donot matter
+
+
+    // #ifdef DEBUG
+    //this shows you the vals as explained
+    // VERBOSETP("iLowH1: ",hsv_values[0]);
+    // VERBOSETP("iHighH1: ",hsv_values[6]);
+    // VERBOSETP("iLowS1: ",hsv_values[2]);
+    // VERBOSETP("iHighS1: ",hsv_values[8]);
+    // VERBOSETP("iLowV1: ",hsv_values[4]);
+    // VERBOSETP("iHighV1: ",hsv_values[10]);
+    // printf("\n");
+    // VERBOSETP("iLowH2: ",hsv_values[1]);
+    // VERBOSETP("iHighH2: ",hsv_values[7]);
+    // VERBOSETP("iLowS2: ",hsv_values[3]);
+    // VERBOSETP("iHighS2: ",hsv_values[9]);
+    // VERBOSETP("iLowV2: ",hsv_values[5]);
+    // VERBOSETP("iHighV2: ",hsv_values[11]);
+    // #endif
+    
+    printf("All set!\n");
+    // printf("Switch to Vision Mode to begin!\n");
+    printf("\nhit ENTER\n");
+    getchar();
+
+    //starting pace is 600
+    Walking::GetInstance()->PERIOD_TIME = 600;
+
+
+
+    //these are the x and y values for the target.
+    //default vals = -1
     float iLastX = -1; 
     float iLastY = -1;
 
+
+    //hsv image and the two threshold images for for both colors
+    //note: img_thresholded1 and 2 will be binary images
+    cv::Mat img_hsv, img_thresholded1, img_thresholded2;
+    cv::Mat yellow_threshold;
+
+    StatusCheck::Check(cm730);
+    StatusCheck::m_cur_mode = SPRINT;
+
     while( true )
     {
-        LinuxCamera::GetInstance()->CaptureFrame();
-        memcpy(rgb_output->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageSize);
-        cv::Mat mat_frame=cv::Mat(rgb_output->m_Height,rgb_output->m_Width,CV_8UC3,rgb_output->m_ImageData);
+        StatusCheck::Check(cm730);
 
-        if( mat_frame.data )
+        if(StatusCheck::m_cur_mode == SPRINT)
         {
-            cv::cvtColor(mat_frame,mat_frame,cv::COLOR_RGB2BGR);
-            cv::cvtColor(mat_frame,img_hsv,cv::COLOR_BGR2HSV);
-            
-            img_thresholded1 = cv::Mat(mat_frame.size(),CV_8UC1);
-            img_thresholded2 = cv::Mat(mat_frame.size(),CV_8UC1);
-            
-            cv::inRange(img_hsv,cv::Scalar(hsv_values[0], hsv_values[2], hsv_values[4]),cv::Scalar(hsv_values[6], hsv_values[8], hsv_values[10]),img_thresholded1);
-            cv::inRange(img_hsv,cv::Scalar(hsv_values[1], hsv_values[3], hsv_values[5]),cv::Scalar(hsv_values[7], hsv_values[9], hsv_values[11]),img_thresholded2);
-
-            // cv::GaussianBlur(img_thresholded,img_thresholded,cv::Size(9,9),2,2);
-
-            cv::erode(img_thresholded1,img_thresholded1,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
-            cv::erode(img_thresholded2,img_thresholded2,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
-
-            // cv::dilate(img_thresholded,img_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
-
-            cv::Point3f img_target= find_target(img_thresholded1, img_thresholded2); //find target based on two colours
-
-            int curr_dist = img_target.z;
-
-            if (curr_dist != -1)  // the last dist value, default is -1
+            while( true )
             {
-                    iLastX = img_target.x;
-                    iLastY = img_target.y;
+                LinuxCamera::GetInstance()->CaptureFrame();
+                memcpy(rgb_output->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageSize);
+                cv::Mat mat_frame=cv::Mat(rgb_output->m_Height,rgb_output->m_Width,CV_8UC3,rgb_output->m_ImageData);
                 
-                VERBOSETP("Targets' rel. distance: ",curr_dist);
-                Point2D new_ball_pos(iLastX,iLastY);
+                if (mat_frame.data)
+                {//convert to0 BGR before converting to HSV
+                    cv::cvtColor(mat_frame,mat_frame,cv::COLOR_RGB2BGR);
+                    cv::cvtColor(mat_frame,img_hsv,cv::COLOR_BGR2HSV);
+                    
+                    //initializing threshold mat images as single channel images
+                    img_thresholded1 = cv::Mat(mat_frame.size(),CV_8UC1);
+                    img_thresholded2 = cv::Mat(mat_frame.size(),CV_8UC1);
+                    yellow_threshold = cv::Mat(mat_frame.size(),CV_8UC1);
 
-                #ifdef BLIND_SPRINT
-                tracker.Process(new_ball_pos);
-                start_running();
-                usleep((Robot::Walking::GetInstance()->PERIOD_TIME * 10)*1000); //walk 10 steps
-                #else
-
-                tracker.Process(new_ball_pos);
-                follower.Process(tracker.ball_position);
-                // process(tracker.ball_position);
+                    cv::Point3f img_target; //target contains x, y and some other param
+                    int curr_dist = 0; //distance between two images
+                    float yellow_area = 0.0;//area of yellow patch
 
 
-                if (curr_dist > 70 && !going_backwards)
-                {
-                    Walking::GetInstance()->PERIOD_TIME = 750;
-                }
-                if (curr_dist >= past_finish_line_dist) //past the 1st finishing line
-                {
-                    stop_running();
-                    // move_backward();
-                }
+                    if ( !tracing_yellow ) //still far from target 
+                    {
+                        yellow_area = 0.0;
+                        //applying respective thresholding based on calibrated vals from set_range_params()
+                        cv::inRange(img_hsv,cv::Scalar(hsv_values[1], hsv_values[4], hsv_values[7]),cv::Scalar(hsv_values[10], hsv_values[13], hsv_values[16]),img_thresholded1);
+                        cv::inRange(img_hsv,cv::Scalar(hsv_values[2], hsv_values[5], hsv_values[8]),cv::Scalar(hsv_values[11], hsv_values[14], hsv_values[17]),img_thresholded2);
+                        //removing false positives
+                        cv::erode(img_thresholded1,img_thresholded1,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+                        cv::erode(img_thresholded2,img_thresholded2,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
 
-                #ifdef DEBUG
-                cv::circle(mat_frame,cv::Point(iLastX,iLastY),3,cv::Scalar(255,0,0));
-                cv::line(mat_frame,POINT_A,POINT_B,cv::Scalar(0,255,0),1,8);
-                #endif
-                #endif
-            }
-            else 
-            {
-                //target not found
-                fprintf(stderr, "target not found.");
-            }
-            cv::imshow("Binary Image1",img_thresholded1);
-            cv::imshow("Binary Image2",img_thresholded2);
-            cv::imshow("Live feed", mat_frame);
-            if(cv::waitKey(30) == 27) 
-            {
-                stop_running();
-                restore_params();
-                break;
-            }
-        } // if mat_frame.data
-    } //outermost while
+                        //find target based on two colours. pass two binary images to find_target. returns (x,y,distance btw x&y)
+                        img_target = find_target(img_thresholded1, img_thresholded2); 
+                        curr_dist = img_target.z;
+                        VERBOSE("rel dist: "<<curr_dist);
+                    }
+                    else
+                    {//close to target and tracing yellow patch
+                        curr_dist = 0;
+                        //slow down...
+                        Walking::GetInstance()->X_MOVE_AMPLITUDE = 0;
+                        Walking::GetInstance()->A_MOVE_AMPLITUDE = 0;
+                        Walking::GetInstance()->PERIOD_TIME = 850;
+
+                        cv::inRange(img_hsv,cv::Scalar(hsv_values[0], hsv_values[3], hsv_values[6]),cv::Scalar(hsv_values[9], hsv_values[12], hsv_values[15]),yellow_threshold);
+                        cv::erode(yellow_threshold,yellow_threshold,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+                        
+                        //target is yellow patch. contains (x,y,patch area)
+                        img_target = trace_yellow_patch(yellow_threshold);
+                        yellow_area = img_target.z;
+                        VERBOSE("yellow_area: "<<yellow_area);
+                    }
+                    
+                    if ( img_target.z != -1 )
+                    {//if we find our target...
+                        //update the x and y co-ordinates of the target
+                        iLastX = img_target.x;
+                        iLastY = img_target.y;
+
+                        Point2D marker(iLastX,iLastY);
+                        tracker.Process(marker);
+                        if(!going_backwards)
+                            follower.Process(tracker.ball_position);
+
+
+                        if (curr_dist >90 && !going_backwards)
+                        {//approaching target
+                            tracing_yellow = true;
+                        }
+
+                        if (yellow_area > 2170 && !going_backwards)
+                        {
+                            move_backward();
+                            Walking::GetInstance()->PERIOD_TIME = 700;
+                            Head::GetInstance()->MoveToHome();
+                            Head::GetInstance()->InitTracking();
+                        }
+                        if (going_backwards)
+                        {
+                            // Walking::GetInstance()->X_MOVE_AMPLITUDE = -9;
+                            Walking::GetInstance()->HIP_PITCH_OFFSET = 24.5;
+                        }
+
+
+                        //display target on livestream -- for debugging
+                        #ifdef DEBUG
+                        cv::circle(mat_frame,cv::Point(iLastX,iLastY),3,cv::Scalar(255,0,0));
+                        cv::line(mat_frame,POINT_A,POINT_B,cv::Scalar(0,255,0),1,8);
+                        #endif
+                    }
+                    else
+                    {
+                        Walking::GetInstance()->X_MOVE_AMPLITUDE = 0;
+                        Walking::GetInstance()->A_MOVE_AMPLITUDE = 0;
+                    }
+
+                    //live stream results
+                    cv::imshow("Live feed", mat_frame);
+                    // cv::imshow("Binary Image1",img_thresholded1);
+                    // cv::imshow("Binary Image2",img_thresholded2);
+                    if( cv::waitKey(30) == 27 ) 
+                    {
+                        VERBOSE("");
+                        break;
+                    }
+                    // break;
+                }//mat_frame.data
+            }//while vison
+            VERBOSE("");
+            break;
+        }//StatusCheck::m_cur_mode == SPRINT
+    }//while status check
+
     return 0;
-}//end of main.cpp
+}
