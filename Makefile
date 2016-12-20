@@ -1,5 +1,5 @@
 ###############################################################
-# Purpose: Makefile for "sprint"
+# Purpose: Makefile for "sprint_two_colors"
 # Author.: Bryan Wodi
 # Version: 0.1
 # License: GPL
@@ -40,4 +40,4 @@ $(TARGET): darwin.a $(OBJECTS)
 # useful to make a backup "make tgz"
 tgz: clean
 	mkdir -p backups
-	tar czvf ./backups/DARwIn_sprint_`date +"%Y_%m_%d_%H.%M.%S"`.tgz --exclude backups *
+	tar czvf ./backups/DARwIn_sprint_two_colors_`date +"%Y_%m_%d_%H.%M.%S"`.tgz --exclude backups *

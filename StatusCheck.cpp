@@ -179,7 +179,7 @@ void StatusCheck::Check(CM730 &cm730)
             cm730.WriteByte(CM730::P_LED_PANNEL, 0x02, NULL);
             LinuxActionScript::PlayMP3("../../../Data/mp3/Interactive motion mode.mp3");
         }
-        else if(m_cur_mode == VISION)
+        else if(m_cur_mode == SPRINT)
         {
             cm730.WriteByte(CM730::P_LED_PANNEL, 0x04, NULL);
             LinuxActionScript::PlayMP3("../../../Data/mp3/Vision processing mode.mp3");
@@ -246,7 +246,7 @@ void StatusCheck::Check(CM730 &cm730)
                 Action::GetInstance()->Start(1);
                 while(Action::GetInstance()->IsRunning() == true) usleep(8000);
             }
-            else if(m_cur_mode == VISION)
+            else if(m_cur_mode == SPRINT)
             {
                 MotionManager::GetInstance()->Reinitialize();
                 MotionManager::GetInstance()->SetEnable(true);
@@ -255,9 +255,10 @@ void StatusCheck::Check(CM730 &cm730)
 
                 // Joint Enable...
                 Action::GetInstance()->m_Joint.SetEnableBody(true, true);
-
-                Action::GetInstance()->Start(1);
-                while(Action::GetInstance()->IsRunning() == true) usleep(8000);
+                Head::GetInstance()->m_Joint.SetEnableHeadOnly(true, true);
+                Walking::GetInstance()->m_Joint.SetEnableBodyWithoutHead(true, true);
+                // Action::GetInstance()->Start(1);
+                // while(Action::GetInstance()->IsRunning() == true) usleep(8000);
             }
         }
         else

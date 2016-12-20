@@ -18,7 +18,7 @@ namespace Robot
         READY,
         SOCCER,
         MOTION,
-        VISION,
+        SPRINT,
         MAX_MODE
     };
 
@@ -33,7 +33,8 @@ namespace Robot
     };
 
     class StatusCheck {
-    private:
+    // private: --hack
+    public:
         static int m_old_btn;
         static int m_chicago_mode_cnt;
 

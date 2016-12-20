@@ -1,7 +1,7 @@
 //SprintCompilerDefinitions.hpp
 /*
 @author: Bryan Wodi <talk2kamp@gmail.com>
-@date:	Aug 13, 2016
+@date:	Oct 13, 2016
 */
 
 #ifndef _SPRINT_COMPILER_DEFINITIONS_H_

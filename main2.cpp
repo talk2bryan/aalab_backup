@@ -45,7 +45,9 @@
 //this contains the values used in thresholding the 
 //three images/colors: lowH1,lowH2,lowH3,lowS1,lowS2,lowS3,lowV1,lowV2,lowV3...etc
 // where 1, 2 and 3 represent each of the three colors
-static int hsv_values[12];
+static int hsv_values[18]; 
+static cv::Point POINT_A;
+static cv::Point POINT_B;
 
 //for image processing...
 static const int canny_threshold = 100;
@@ -53,8 +55,8 @@ static const int canny_ratio = 3;
 static const int canny_kernel_size = 3;
 
 //flag for indicating direction & yellow patch tracing
-// static bool going_backwards = false;
-// static bool tracing_yellow = false;
+static bool going_backwards = false;
+static bool tracing_yellow = false;
 
 
 int m_NoTargetMaxCount = 10;
@@ -88,17 +90,9 @@ double m_FBStep= 0;
 double m_RLTurn= 0;
 
 
-enum SPRINT_STATE
-{
-    FORWARD_PINK,
-    FORWARD_GREEN,
-    BACKWARD_GREEN,
-    BACKWARD_PINK
-};
 
-
-//for walking after target's been seen. x_amp will be the X_MOVE_AMP
-static void m_motion(Point2D target, double x_amp)
+//for walking backward after target's been hit
+static void back_motion(Point2D target)
 {
     if(target.X == -1.0 || target.Y == -1.0) // no target
     {
@@ -170,6 +164,7 @@ static void m_motion(Point2D target, double x_amp)
             m_KickTargetCount = 0;
             m_GoalFBStep = 0;
             m_GoalRLTurn = m_FollowMaxRLTurn * pan_percent;
+            // VERBOSE( "[FOLLOW(P:"<< pan << "T:" << tilt << ">" <<tilt_min<< "]" ); 
         }       
     }
 
@@ -190,12 +185,30 @@ static void m_motion(Point2D target, double x_amp)
             m_FBStep = 0;
             m_RLTurn = 0;
             m_KickTargetCount = 0;
+            Walking::GetInstance()->X_MOVE_AMPLITUDE = m_FBStep;
             Walking::GetInstance()->A_MOVE_AMPLITUDE = m_RLTurn;
             Walking::GetInstance()->Start();            
         }
         else
         {
-            Walking::GetInstance()->X_MOVE_AMPLITUDE = x_amp; 
+            if(m_FBStep < m_GoalFBStep){
+                m_BPace += m_UnitBPace;
+                if(m_BPace < m_MaxBPace)
+                    m_BPace = m_MaxBPace;
+                // m_FBStep += m_UnitFBStep;
+                // if(m_FBStep > m_MaxFBStep)
+                //     m_FBStep=m_MaxFBStep;
+                
+            }
+            else if(m_FBStep > m_GoalFBStep){
+                m_FBStep = m_GoalFBStep;
+            }
+
+            // if( going_backwards && 0 < m_FBStep)
+            //     m_FBStep = -m_FBStep;
+            //changed to test ini
+            Walking::GetInstance()->X_MOVE_AMPLITUDE = -9;//m_MaxFBStep; //m_FBStep;
+            Walking::GetInstance()->PERIOD_TIME = m_BPace;
 
             //TODO: do walk state check to adjust RL turn
             if(m_RLTurn < m_GoalRLTurn)
@@ -203,8 +216,12 @@ static void m_motion(Point2D target, double x_amp)
             else if(m_RLTurn > m_GoalRLTurn)
                 m_RLTurn -= m_UnitRLTurn;
 
+            // if(going_backwards)
+            //     m_RLTurn = -m_RLTurn;
             Walking::GetInstance()->A_MOVE_AMPLITUDE = m_RLTurn;
-            fprintf(stderr, "(Pace: %f m_RLTurn: %f)\n", Walking::GetInstance()->PERIOD_TIME,Walking::GetInstance()->A_MOVE_AMPLITUDE);
+            fprintf(stderr, "(Pace: %f m_RLTurn: %f)\n", m_BPace,m_RLTurn);
+
+            // VERBOSE(" (FB:" << m_FBStep<< "RL:" <<m_RLTurn <<")" );
         }
     }   
 }
@@ -213,23 +230,72 @@ static double getDist(cv::Point p0, cv::Point p1)
 {
     return sqrt( (p1.x- p0.x)*(p1.x - p0.x) + (p1.y - p0.y)*(p1.y - p0.y));
 }
+//returns the angle (in radians) between two vectors
+//for degrees: result * 180 / PI
+static float calculate_angle_between_points(const cv::Point& pt1, const cv::Point& pt2)
+{
+    return atan2( pt1.y - pt2.y, pt1.x - pt2.x );
+}
 
+static void move_backward() //happens once
+{
+    if (! going_backwards)
+    {
+        going_backwards = true;
+        tracing_yellow = false;
+        VERBOSE("GOING BACK SET");
+        Walking::GetInstance()->PERIOD_TIME = 800;
+        Walking::GetInstance()->X_MOVE_AMPLITUDE = -9;
+        usleep( ((Walking::GetInstance()->PERIOD_TIME * 7) ) * 1000);
+    }
+}
+
+//param: binary of yellow thrshold
+//return: 3-point float containing (x,y,area of patch)
+//returns (-1,-1,-1) if target not found
+static cv::Point3f trace_yellow_patch(const cv::Mat& frame)
+{
+    
+    float x, y;
+
+    cv::Moments muA = cv::moments(frame, true);
+    
+    x = muA.m10 / muA.m00;
+    y = muA.m01 / muA.m00;
+
+    cv::Point3f result(x,y,muA.m00);
+    return result;
+}
+
+//method only performed once
+static bool set = false;
+static void enable_patch_trace()
+{
+    if (set == false)
+    {
+        Head::GetInstance()->MoveByAngle(0,0); //tilt head to trace yellow patch
+        POINT_A.x = POINT_A.y = -1;
+        POINT_B.x = POINT_B.y = -1;
+        tracing_yellow = true;
+        set = true;
+    }
+    
+}
 
 static void adjust_gait()
 {
-    Walking::GetInstance()->PERIOD_TIME = 700;
-    Walking::GetInstance()->X_MOVE_AMPLITUDE = -1;
-    Walking::GetInstance()->A_MOVE_AMPLITUDE = 0;
-
+    Walking::GetInstance()->PERIOD_TIME = 600;
+    Walking::GetInstance()->X_MOVE_AMPLITUDE = 0;
+    Head::GetInstance()->MoveToHome();
 }
 
-// //return 2D distance between two points
-// static float get_2D_distance( cv::Point& pt1,  cv::Point& pt2)
-// {//based on the Euclidean plane
-//     float diffX = pt1.x - pt2.x;
-//     float diffY = pt1.y - pt2.y;
-//     return sqrt( (diffX * diffX) + (diffY * diffY) );
-// }
+//return 2D distance between two points
+static float get_2D_distance( cv::Point& pt1,  cv::Point& pt2)
+{//based on the Euclidean plane
+    float diffX = pt1.x - pt2.x;
+    float diffY = pt1.y - pt2.y;
+    return sqrt( (diffX * diffX) + (diffY * diffY) );
+}
 
 // This is used later by std::sort()
 struct sortComparator {
@@ -239,6 +305,7 @@ struct sortComparator {
 /// return marker: (x,y,size)
 cv::Point3f findMarker(cv::Mat &camFrame,  cv::Mat &hsvThreshold, int minSize, int maxSize)
 { 
+    int arrowType = 0; 
     
     cv::Point3f marker;
     cv::vector<cv::vector<cv::Point> > contours;
@@ -289,7 +356,7 @@ cv::Point3f findMarker(cv::Mat &camFrame,  cv::Mat &hsvThreshold, int minSize, i
             if(approxArrow.size() == 4) 
             {
                 //cout << "Detect Rect:" << mu[i].m00 << endl;
-                // int angle[4];       
+                int angle[4];       
                 /// sort vector using myobject as comparator
                 sort(approxArrow.begin(), approxArrow.end(), sortbyx);
                 std::vector<cv::Point> patchCorners;
@@ -331,15 +398,12 @@ cv::Point3f findMarker(cv::Mat &camFrame,  cv::Mat &hsvThreshold, int minSize, i
                 {                               
                     cv::drawContours( camFrame, contours, i, cv::Scalar(255, 0, 0), 2, 8, hierarchy, 0, cv::Point() );
                     
-                    for(int p = 0; p < 4; ++p)
-                    {
+                    for(int p = 0; p < 4; ++p){
                         if (p == 0) cv::circle(camFrame, patchCorners[p], 3, cv::Scalar(0, 0, 255), 1); // red
                         else if (p == 1) cv::circle(camFrame, patchCorners[p], 3, cv::Scalar(0, 255, 0), 1); // green
                         else if (p == 2) cv::circle(camFrame, patchCorners[p], 3, cv::Scalar(255, 0, 0), 1); // blue
+
                     }
-                    float x = mu[i].m10/mu[i].m00;
-                    float y = mu[i].m01/mu[i].m00;
-                    marker = cv::Point3f(x,y,patchSize);
                                     
                 } // IF confirmed rectangle
                 else
@@ -356,38 +420,74 @@ cv::Point3f findMarker(cv::Mat &camFrame,  cv::Mat &hsvThreshold, int minSize, i
 //params: two diff binary frames
 //return: 3-point float containing (x,y,dist. btw x&y).
 //returns (-1,-1,-1) if target not found
-static cv::Point3f find_target(cv::Mat& cam_frame,  cv::Mat& frame_a, int color)
+static cv::Point3f find_target(cv::Mat& cam_frame,  cv::Mat& frame_a, cv::Mat& frame_b)
 {
     cv::Point3f target_centre(-1,-1,-1);
 
+    // float x, y;
+
+    // cv::Moments muA = cv::moments(frame_a, true);
+    // cv::Moments muB = cv::moments(frame_b, true);
+
     cv::Point center_A, center_B;
-    cv::Point3f p0;
+    cv::Point3f p0,p1;
 
-    float size_a;
+    float size_a, size_b;
 
-    if (color == 0)
-    {//pink
-        p0 = findMarker(cam_frame, frame_a, 150,15000);
-    }
-    else if(color == 1)
-    {//green
-        p0 = findMarker(cam_frame, frame_a, 150,700);
-    }
-    
+    p0 = findMarker(cam_frame, frame_a, 100,30000);
+    p1 = findMarker(cam_frame, frame_b, 100,30000);
 
     size_a = p0.z;
-    VERBOSE("marker.x: "<< p0.x<<" marker.y: "<<p0.y<<" marker.z: "<<size_a);
+    size_b = p1.z;
 
-    if ( size_a != -1 )
+    if (size_a != -1 && size_b != -1)
     {
         center_A.x = p0.x;
         center_A.y = p0.y;
 
-        cv::circle(cam_frame,cv::Point(center_A.x,center_A.y),3,cv::Scalar(255,0,0));
+        center_B.x = p1.x;
+        center_B.y = p1.y;
+
+        POINT_A = center_A;
+        POINT_B = center_B;
+
+        float x = (center_A.x+center_B.x)/2;
+        float y = (center_A.y+center_B.y)/2;
+
+        cv::circle(cam_frame,cv::Point(x,y),3,cv::Scalar(255,0,0));
+                    // cv::line(mat_frame,POINT_A,POINT_B,cv::Scalar(0,255,0),1,8);
+
+        float curr_distance = get_2D_distance(center_A,center_B);
         
         // float curr_distance = get_2D_distance(center_A,center_B);
-        target_centre = cv::Point3f(center_A.x,center_A.y, size_a);
+        target_centre = cv::Point3f(x,y, curr_distance);
     }
+    
+    // center_A.x = muA.m10 / muA.m00;
+    // center_A.y = muA.m01 / muA.m00;
+
+    // center_B.x = muB.m10 / muB.m00;
+    // center_B.y = muB.m01 / muB.m00;
+
+    // POINT_A = center_A;
+    // POINT_B = center_B;
+    // float angle = calculate_angle_between_points(center_A,center_B);
+
+
+    // VERBOSE("angle: " << angle );
+
+    // x = (center_A.x+center_B.x)/2;
+    // y = (center_A.y+center_B.y)/2;
+
+    // float curr_distance = get_2D_distance(center_A,center_B);
+
+    // //filter to ensure the right objects are being picked up based on caliberated distances
+    // //between the images, looking at target from start line and at finish line.
+    // if ( (curr_distance >= 15 && curr_distance <= 150)
+    //     &&  (-0.6 <= angle && angle <= 0.08)/*&& (abs(shortest_path - curr_distance) <=20)*/ )//calibrated value
+    // {
+    //     target_centre = cv::Point3f(x,y, curr_distance);
+    // }
     
     return target_centre;
 }
@@ -397,33 +497,45 @@ static cv::Point3f find_target(cv::Mat& cam_frame,  cv::Mat& frame_a, int color)
 //based on openCV documentation
 static void initialize_hsv_array()
 {
-    for(int i = 0; i<12;i++)
+    for(int i = 0; i<18;i++)
     {
-        if(i <= 5)
+        if(i <= 8)
             hsv_values[i] = 0;
-        else if(i >5 && i <8)
+        else if(i >8 && i <12)
             hsv_values[i] = 179;
         else
             hsv_values[i] = 255;
     }
 
     //default vals for thresholding
-    //pink
-    hsv_values[0] = 128;
-    hsv_values[2] = 100;
-    //green
-    hsv_values[3] = 141;
-    hsv_values[7] = 60;
+    //assuming you set the thresh vals in the order: yellow, pink
+    //before green... 
+
+    //yellow patch
+    hsv_values[3] = 163;//lowS
+    hsv_values[12] = 227; //highS
+    hsv_values[9] = 34; //highH
+    hsv_values[6] = 155; //lowV
+
+    //pink paper
+    hsv_values[1] = 132; //lowH
+    // hsv_values[2] = 100;
+    // //green paper
+    hsv_values[2] = 26; //lowH
+    hsv_values[5] = 200; //lowS
+    hsv_values[11] = 57; //highH
 }
 
 //before the race starts, you want to calibrate the vals for 
-//all 2colors. this receives d_x which is an offset (0 or 1)
+//all 3 colors. this receives d_x which is an offset (0, 1 oo 2)
 //that sets the thresh vals for the corresponding color
-//0 -- means, set HSV vals for 1st color (pink)
-//1 -- set HSV vals for the 2nd color (green)
+//0 -- means, set HSV vals for 1st color
+//1 -- set HSV vals for the 2nd color
+//2 -- set HSV vals for the 3rd color
 
-//in the main, just call this method 3ice with 0, 1 
-//to set the thresh vals for all 2 colors
+//i assume yellow is set 1st as the head is tilted only for the first time
+//in the main, just call this method 3ice with 0, 1 and 2
+//to set the thresh vals for all 3 colors
 static void set_range_params(int d_x)
 {
     VERBOSE("Setting the range for thresholding");
@@ -438,13 +550,13 @@ static void set_range_params(int d_x)
 
 
     cvCreateTrackbar("LowH", "Colour Control", &hsv_values[d_x], 179);
-    cvCreateTrackbar("HighH", "Colour Control", &hsv_values[d_x+6], 179);
+    cvCreateTrackbar("HighH", "Colour Control", &hsv_values[d_x+9], 179);
 
-    cvCreateTrackbar("LowS", "Colour Control", &hsv_values[d_x+2], 255);
-    cvCreateTrackbar("HighS", "Colour Control", &hsv_values[d_x+8], 255);
+    cvCreateTrackbar("LowS", "Colour Control", &hsv_values[d_x+3], 255);
+    cvCreateTrackbar("HighS", "Colour Control", &hsv_values[d_x+12], 255);
 
-    cvCreateTrackbar("LowV", "Colour Control", &hsv_values[d_x+4], 255);
-    cvCreateTrackbar("HighV", "Colour Control", &hsv_values[d_x+10], 255);
+    cvCreateTrackbar("LowV", "Colour Control", &hsv_values[d_x+6], 255);
+    cvCreateTrackbar("HighV", "Colour Control", &hsv_values[d_x+15], 255);
 
     while( true )
     {
@@ -462,17 +574,17 @@ static void set_range_params(int d_x)
 
             curr_thresholded = cv::Mat(curr_frame.size(),CV_8UC1);
             
-            cv::inRange(curr_hsv,cv::Scalar(hsv_values[d_x],hsv_values[d_x+2],hsv_values[d_x+4]),cv::Scalar(hsv_values[d_x+6],hsv_values[d_x+8],hsv_values[d_x+10]),curr_thresholded);
-            // cv::GaussianBlur(curr_thresholded,curr_thresholded,cv::Size(9,9),2,2);
+            cv::inRange(curr_hsv,cv::Scalar(hsv_values[d_x],hsv_values[d_x+3],hsv_values[d_x+6]),cv::Scalar(hsv_values[d_x+9],hsv_values[d_x+12],hsv_values[d_x+15]),curr_thresholded);
             cv::erode(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
             cv::Canny(curr_thresholded,curr_canny,canny_threshold,canny_threshold*canny_ratio,canny_kernel_size);
-            // cv::dilate(curr_thresholded,curr_thresholded,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+        }
+        //report area just for calibrating yellow
+        if ( d_x == 0)
+        {
+            cv::Moments muA = cv::moments(curr_thresholded, true);
+            VERBOSE(muA.m00);
         }
         
-        cv::Moments muA = cv::moments(curr_thresholded, true);
-        VERBOSE(muA.m00);
-        
-       
         // cv::imshow("Canny Image",curr_canny);
         cv::imshow("Threshold Image",curr_thresholded);
         cv::imshow("Colour Control",curr_frame);
@@ -483,12 +595,6 @@ static void set_range_params(int d_x)
             break;
         }
     }
-}
-
-static void flush_left_right(cv::Mat& frame, double ratio)
-{
-    cv::rectangle(frame, cv::Point(0,0), cv::Point(frame.size().width*ratio, frame.size().height), cv::Scalar(0,0,0),-1,1);
-    cv::rectangle(frame, cv::Point(frame.size().width*(1.0 - ratio),0), cv::Point(frame.size().width, frame.size().height), cv::Scalar(0,0,0),-1,1);
 }
 
 void change_current_dir()
@@ -581,22 +687,28 @@ int main(void)
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////
     //stand up and stage for thresholding and running 
-    // LinuxActionScript::PlayMP3("../../../Data/mp3/Demonstration ready mode.mp3");
+    LinuxActionScript::PlayMP3("../../../Data/mp3/Demonstration ready mode.mp3");
     ////////////////////////////////////////////////////////////////////////////////////////////////////
-    usleep( ((Walking::GetInstance()->PERIOD_TIME * 7) ) * 1000);
+
+    VERBOSE("hit ENTER to begin: ")
+    getchar();
 
     Head::GetInstance()->m_Joint.SetEnableHeadOnly(true, true);
     Walking::GetInstance()->m_Joint.SetEnableBodyWithoutHead(true, true);
     MotionManager::GetInstance()->SetEnable(true);
     Walking::GetInstance()->STEP_FB_RATIO = 1.0;
     
+    
+
     initialize_hsv_array(); //set range for thresholding 
+    
+    //now calibrate the 3 colors. see method def
+    Head::GetInstance()->MoveByAngle(0,0); //tilt head to thresh yellow
+    set_range_params(0);
 
-
-    Head::GetInstance()->MoveByAngle(0,40);
-    //now calibrate the 2 colors. see method def
-    set_range_params(0);//pink
-    set_range_params(1);//green
+    Head::GetInstance()->MoveByAngle(0,50);//look back up
+    set_range_params(1);//pink
+    set_range_params(2);//green  -- the order of these two donot matter
 
 
     // #ifdef DEBUG
@@ -624,19 +736,21 @@ int main(void)
     //starting pace is 600
     Walking::GetInstance()->PERIOD_TIME = 600;
 
+
+
     //these are the x and y values for the target.
     //default vals = -1
     float iLastX = -1; 
     float iLastY = -1;
 
+
     //hsv image and the two threshold images for for both colors
-    //note: pink_threshold and green_threshold will be binary images
-    cv::Mat img_hsv, pink_threshold, green_threshold;
+    //note: img_thresholded1 and 2 will be binary images
+    cv::Mat img_hsv, img_thresholded1, img_thresholded2;
+    cv::Mat yellow_threshold;
 
     StatusCheck::Check(cm730);
     StatusCheck::m_cur_mode = SPRINT;
-
-    SPRINT_STATE curr_state = FORWARD_PINK;
 
     while( true )
     {
@@ -651,172 +765,118 @@ int main(void)
                 cv::Mat mat_frame=cv::Mat(rgb_output->m_Height,rgb_output->m_Width,CV_8UC3,rgb_output->m_ImageData);
                 
                 if (mat_frame.data)
-                {
-                    //flush
-                    flush_left_right(mat_frame, 0.2);
-                    //convert to BGR before converting to HSV
+                {//convert to0 BGR before converting to HSV
                     cv::cvtColor(mat_frame,mat_frame,cv::COLOR_RGB2BGR);
                     cv::cvtColor(mat_frame,img_hsv,cv::COLOR_BGR2HSV);
                     
                     //initializing threshold mat images as single channel images
-                    pink_threshold = cv::Mat(mat_frame.size(),CV_8UC1);
-                    green_threshold = cv::Mat(mat_frame.size(),CV_8UC1);
+                    img_thresholded1 = cv::Mat(mat_frame.size(),CV_8UC1);
+                    img_thresholded2 = cv::Mat(mat_frame.size(),CV_8UC1);
+                    yellow_threshold = cv::Mat(mat_frame.size(),CV_8UC1);
 
                     cv::Point3f img_target; //target contains x, y and some other param
-                    float image_area = 0.0;//area of yellow patch
+                    int curr_dist = 0; //distance between two images
+                    float yellow_area = 0.0;//area of yellow patch
 
-                    switch(curr_state)
+                    if (going_backwards == false)
                     {
-                        case FORWARD_PINK:
-                            VERBOSE("FORWARD_PINK");
-                            cv::inRange(img_hsv,cv::Scalar(hsv_values[0], hsv_values[2], hsv_values[4]),cv::Scalar(hsv_values[6], hsv_values[8], hsv_values[10]),pink_threshold);
-                            //removing false positives
-                            // cv::erode(pink_threshold,pink_threshold,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
-
-                            //find target based on two colours. pass two binary images to find_target. returns (x,y,distance btw x&y)
-                            img_target = find_target(mat_frame, pink_threshold,0);
-                            image_area = img_target.z;
-                            if ( image_area != -1 && image_area != 0 )
-                            {
-                                VERBOSE("FORWARD_PINK area: "<<image_area);
-
-                                if (image_area > 3400)
-                                {
-                                    //slow down...
-                                    Walking::GetInstance()->PERIOD_TIME = 850;
-                                    curr_state = FORWARD_GREEN;
-                                }
-                                else
-                                {
-                                    //pace
-                                    Walking::GetInstance()->PERIOD_TIME = 600;
-
-                                    //update the x and y co-ordinatimg_targetes of the target
-                                    iLastX = img_target.x;
-                                    iLastY = img_target.y;
-
-                                    Point2D marker(iLastX,iLastY);
-                                    tracker.Process(marker);
-                                    m_motion(tracker.ball_position,10);
-                                }
-                            }
-                            else
-                            {
-                                adjust_gait();
-                            }
-                        break;
-                        case FORWARD_GREEN:
-                            VERBOSE("FORWARD_GREEN");
+                        if ( tracing_yellow == false ) //still far from target 
+                        {
+                            yellow_area = 0.0;
                             //applying respective thresholding based on calibrated vals from set_range_params()
-                            cv::inRange(img_hsv,cv::Scalar(hsv_values[1], hsv_values[3], hsv_values[5]),cv::Scalar(hsv_values[7], hsv_values[9], hsv_values[11]),green_threshold);
+                            cv::inRange(img_hsv,cv::Scalar(hsv_values[1], hsv_values[4], hsv_values[7]),cv::Scalar(hsv_values[10], hsv_values[13], hsv_values[16]),img_thresholded1);
+                            cv::inRange(img_hsv,cv::Scalar(hsv_values[2], hsv_values[5], hsv_values[8]),cv::Scalar(hsv_values[11], hsv_values[14], hsv_values[17]),img_thresholded2);
                             //removing false positives
-                            // cv::erode(green_threshold,green_threshold,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+                            cv::erode(img_thresholded1,img_thresholded1,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+                            cv::erode(img_thresholded2,img_thresholded2,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
 
                             //find target based on two colours. pass two binary images to find_target. returns (x,y,distance btw x&y)
-                            img_target = find_target(mat_frame, green_threshold,1); 
-                            image_area = img_target.z;
-                            if ( image_area != -1 && image_area != 0 )
-                            {
-                                VERBOSE("FORWARD_GREEN area: "<<image_area);
-                                
-                                if (image_area > 550)
-                                {
-                                    Walking::GetInstance()->PERIOD_TIME = 850;
-                                    curr_state = BACKWARD_GREEN;
-                                }
-                                else
-                                {
-                                    Walking::GetInstance()->PERIOD_TIME = 850;
+                            img_target = find_target(mat_frame, img_thresholded1, img_thresholded2); 
+                            curr_dist = img_target.z;
+                            
 
-                                    //update the x and y co-ordinatimg_targetes of the target
-                                    iLastX = img_target.x;
-                                    iLastY = img_target.y;
-
-                                    Point2D marker(iLastX,iLastY);
-                                    tracker.Process(marker);
-                                    m_motion(tracker.ball_position,0);
-                                }
-                            }
-                            else
-                            {
-                                adjust_gait();
-                            }
-                        break;
-                        case BACKWARD_GREEN:
-                            VERBOSE("BACKWARD_GREEN");
-
-                            //set hip pitch
-                            Walking::GetInstance()->HIP_PITCH_OFFSET = 10.6;
-                            //applying respective thresholding based on calibrated vals from set_range_params()
-                            cv::inRange(img_hsv,cv::Scalar(hsv_values[1], hsv_values[3], hsv_values[5]),cv::Scalar(hsv_values[7], hsv_values[9], hsv_values[11]),green_threshold);
-                            //removing false positives
-                            // cv::erode(green_threshold,green_threshold,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
-
-                            //find target based on two colours. pass two binary images to find_target. returns (x,y,distance btw x&y)
-                            img_target = find_target(mat_frame, green_threshold,1); 
-                            image_area = img_target.z;
-                            if ( image_area != -1 && image_area != 0 )
-                            {
-                                VERBOSE("BACKWARD_GREEN area: "<<image_area);
-                                
-                                if (image_area < 450)
-                                {
-                                    Walking::GetInstance()->PERIOD_TIME = 600;
-                                    curr_state = BACKWARD_PINK;
-                                }
-                                else
-                                {
-                                    Walking::GetInstance()->PERIOD_TIME = 800;
-                                    //update the x and y co-ordinatimg_targetes of the target
-                                    iLastX = img_target.x;
-                                    iLastY = img_target.y;
-
-                                    Point2D marker(iLastX,iLastY);
-                                    tracker.Process(marker);
-                                    m_motion(tracker.ball_position,-9.0);
-                                }
-                            }
-                            else
-                            {
-                                adjust_gait();
-                            }
-                        break;
-                        case BACKWARD_PINK:
-                            VERBOSE("BACKWARD_PINK");
-
-                            Walking::GetInstance()->HIP_PITCH_OFFSET = 10.6;
-                            cv::inRange(img_hsv,cv::Scalar(hsv_values[0], hsv_values[2], hsv_values[4]),cv::Scalar(hsv_values[6], hsv_values[8], hsv_values[10]),pink_threshold);
-                            //removing false positives
-                            // cv::erode(pink_threshold,pink_threshold,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
-
-                            //find target based on two colours. pass two binary images to find_target. returns (x,y,distance btw x&y)
-                            img_target = find_target(mat_frame, pink_threshold,0);
-                            image_area = img_target.z;
-                            if ( image_area != -1 && image_area != 0 )
-                            {
-                                VERBOSE("BACKWARD_PINK area: "<<image_area);
-
-                                Walking::GetInstance()->PERIOD_TIME = 600;
+                            if ( img_target.z != -1 )
+                            {//if we find our target...
+                                VERBOSE("rel dist: "<<curr_dist);
                                 //update the x and y co-ordinatimg_targetes of the target
                                 iLastX = img_target.x;
                                 iLastY = img_target.y;
 
                                 Point2D marker(iLastX,iLastY);
                                 tracker.Process(marker);
-                                m_motion(tracker.ball_position,-16.0);
+                                follower.Process(tracker.ball_position);
+
+
+                                if ( curr_dist >80 )
+                                {//approaching target
+                                    enable_patch_trace();
+                                }
                             }
                             else
                             {
                                 adjust_gait();
                             }
-                        break;
+                        }
+                        else
+                        {//close to target and tracing yellow patch -- still moving forward
+                            curr_dist = 0;
+                            //slow down...
+                            Walking::GetInstance()->X_MOVE_AMPLITUDE = 0;
+                            Walking::GetInstance()->A_MOVE_AMPLITUDE = 0;
+                            Walking::GetInstance()->PERIOD_TIME = 850;
+                            
+
+                            cv::inRange(img_hsv,cv::Scalar(hsv_values[0], hsv_values[3], hsv_values[6]),cv::Scalar(hsv_values[9], hsv_values[12], hsv_values[15]),yellow_threshold);
+                            cv::erode(yellow_threshold,yellow_threshold,cv::getStructuringElement(cv::MORPH_RECT,cv::Size(4,4)));
+                            
+                            //target is yellow patch. contains (x,y,patch area)
+                            // img_target = trace_yellow_patch(yellow_threshold);
+                            img_target = findMarker(mat_frame, yellow_threshold,100,30000);
+                            yellow_area = img_target.z;
+
+                            if ( img_target.z != -1 )
+                            {//if we find patch...
+                                VERBOSE("yellow_area: "<<yellow_area);
+                                //update the x and y co-ordinatimg_targetes of the target
+                                iLastX = img_target.x;
+                                iLastY = img_target.y;
+
+                                Point2D marker(iLastX,iLastY);
+                                tracker.Process(marker);
+                                follower.Process(tracker.ball_position);
+
+                                
+                                if ( yellow_area > 1700)/*3400 or 3200*/
+                                {
+                                    move_backward();
+                                    Walking::GetInstance()->PERIOD_TIME = 700;
+                                    Head::GetInstance()->MoveToHome();
+                                    Head::GetInstance()->InitTracking();
+                                }
+                            }
+                            else
+                            {
+                                adjust_gait();
+                            }
+                        }
                     }
+                    else
+                    {//going backwards
+                        if ( going_backwards == true )
+                        {
+                            Walking::GetInstance()->Stop();
+                            // Walking::GetInstance()->X_MOVE_AMPLITUDE = -9;
+                            // Walking::GetInstance()->HIP_PITCH_OFFSET = 24.5;
+                            // back_motion(tracker.ball_position);
+                        }
+                    }
+
                     //live stream results
                     // cv::circle(mat_frame,cv::Point(iLastX,iLastY),3,cv::Scalar(255,0,0));
                     // cv::line(mat_frame,POINT_A,POINT_B,cv::Scalar(0,255,0),1,8);
                     cv::imshow("Live feed", mat_frame);
-                    // cv::imshow("Binary Image1",pink_threshold);
-                    // cv::imshow("Binary Image2",green_threshold);
+                    // cv::imshow("Binary Image1",img_thresholded1);
+                    // cv::imshow("Binary Image2",img_thresholded2);
                     if( cv::waitKey(30) == 27 ) 
                     {
                         VERBOSE("");
